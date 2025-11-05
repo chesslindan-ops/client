@@ -36,7 +36,7 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     return "Bot alive!", 200
-
+keep_alive()
 # Discord bot setup
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
