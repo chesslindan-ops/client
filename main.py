@@ -65,7 +65,7 @@ async def links_command(interaction: discord.Interaction):
         return
 
     message = "\n".join(links[:10])  # send up to 10 unique links
-    embed = discord.Embed(title="Latest Roblox Links", description=message, color=0x00ffcc)
+    embed = discord.Embed(title="Latest Roblox Links", description=message, color=FF8C00)
     embed.set_footer(text="Quesadillo's Mansion | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
