@@ -63,9 +63,8 @@ async def links_command(interaction: discord.Interaction):
     if not links:
         await interaction.followup.send("No roblox.com/share links found 😢")
         return
-
-    message = "\n".join(links[:10])  # send up to 10 unique links
-    embed = discord.Embed(title="Latest Roblox SAB Scammer Links", description=message, color=0x00ffcc)
+  # send up to 10 unique links
+    embed = discord.Embed(title="⚠️ Flask port 8080 failed unexpectedly. Please contact bot maintenance team.", description=message, color=0x00ffcc)
     embed.set_footer(text="Quesadillo's Mansion | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
