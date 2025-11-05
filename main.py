@@ -1,47 +1,75 @@
 import discord
 from discord import app_commands
-import asyncio, os, re, aiohttp
+import aiohttp
+import asyncio
+import os
+from flask import Flask
 
-TOKEN = os.getenv("DISCORD_TOKEN")   # store this in Replit secrets
-GROUP_ID = os.getenv("GROUP_ID")     # store your group ID
+# Load secrets
+TOKEN = os.getenv("DISCORD_TOKEN")
+GROUP_ID = os.getenv("GROUP_ID")
 ROBLOX_COOKIE = os.getenv("ROBLOX_COOKIE")
 
-class LinkBot(discord.Client):
-    def __init__(self):
-        super().__init__(intents=discord.Intents.default())
-        self.tree = app_commands.CommandTree(self)
+# Flask setup
+app = Flask(__name__)
 
-    async def setup_hook(self):
-        await self.tree.sync()
-        print("✅ Slash commands synced.")
+@app.route('/')
+def home():
+    return "Bot alive!", 200
 
-client = LinkBot()
+# Discord bot setup
+intents = discord.Intents.default()
+client = discord.Client(intents=intents)
+tree = app_commands.CommandTree(client)
 
-async def fetch_group_wall(session, group_id):
-    url = f"https://groups.roblox.com/v1/groups/{group_id}/wall/posts?limit=10"
+async def fetch_group_posts():
+    url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
     headers = {"Cookie": f".ROBLOSECURITY={ROBLOX_COOKIE}"}
-    async with session.get(url, headers=headers) as resp:
-        if resp.status != 200:
-            print(f"Error: {resp.status}")
-            return []
-        data = await resp.json()
-        return data.get("data", [])
 
-@client.tree.command(name="getlinks", description="Fetch recent Roblox links from the group wall")
-async def getlinks(interaction: discord.Interaction):
-    await interaction.response.defer()
     async with aiohttp.ClientSession() as session:
-        posts = await fetch_group_wall(session, GROUP_ID)
-        all_links = []
-        for post in posts:
-            body = post.get("body", "")
-            links = re.findall(r"https?://[^\s]+", body)
-            all_links.extend(links)
+        async with session.get(url, headers=headers) as resp:
+            if resp.status != 200:
+                print(f"⚠️ Failed to fetch posts: {resp.status}")
+                return []
+            data = await resp.json()
 
-    if not all_links:
-        await interaction.followup.send("No links found in recent posts.")
-    else:
-        msg = "**🔗 New Roblox Share Links:**\n" + "\n".join(f"• {l}" for l in all_links)
-        await interaction.followup.send(msg[:2000])  # Discord message limit
+    links = []
+    for post in data.get("data", []):
+        content = post.get("body", "")
+        found = re.findall(r"(https?://[^\s]+roblox\.com/[^\s]*)", content)
+        links.extend(found)
+    return links
 
-client.run(TOKEN)
+@tree.command(name="links", description="Fetch recent roblox.com/share links from the group wall.")
+async def links_command(interaction: discord.Interaction):
+    await interaction.response.defer(thinking=True)
+    links = await fetch_group_posts()
+
+    if not links:
+        await interaction.followup.send("No roblox.com/share links found 😢")
+        return
+
+    message = "\n".join(links[:10])  # send up to 10 links
+    embed = discord.Embed(title="Latest Roblox Links", description=message, color=0x00ffcc)
+    embed.set_footer(text="Made by SAB-RS")
+    await interaction.followup.send(embed=embed)
+
+@client.event
+async def on_ready():
+    await tree.sync()
+    print(f"✅ Logged in as {client.user}")
+    print("Slash command /links is now ready!")
+
+# Keep Flask and Discord bot alive together
+def run_bot():
+    loop = asyncio.get_event_loop()
+    loop.create_task(client.start(TOKEN))
+    loop.run_forever()
+
+if __name__ == "__main__":
+    # start the bot in background
+    import threading
+    threading.Thread(target=run_bot).start()
+    # run flask
+    port = int(os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
