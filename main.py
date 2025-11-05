@@ -55,7 +55,7 @@ async def fetch_group_posts():
     
     return unique_links
 
-@tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l")
+@tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
 async def links_command(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
     links = await fetch_group_posts()
