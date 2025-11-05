@@ -56,7 +56,7 @@ async def links_command(interaction: discord.Interaction):
         return
 
     message = "\n".join(links[:10])  # send up to 10 links
-    embed = discord.Embed(title="Latest Roblox Links", description=message, color=0x00ffcc)
+    embed = discord.Embed(title="Latest Roblox Scammer Links", description=message, color=0x00ffcc)
     embed.set_footer(text="Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
