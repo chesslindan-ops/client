@@ -65,9 +65,12 @@ async def links_command(interaction: discord.Interaction):
         return
 
     message = "\n".join(links[:10])  # send up to 10 unique links
-    embed = discord.Embed(title="Latest Roblox SAB Scammer Links", description=message, color=0x00ffcc)
+    embed = discord.Embed(title="Latest SAB Scammer Links 🔗⚠️", description=message, color=0x00ffcc)
     embed.set_footer(text="DM @h.aze.l for bug reports.| Made by SAB-RS")
+    message2 = "The bot might also spit out emojis with links. These emojis have **no correlation** to the brainrots that are to be found in the server. Also, use empty accounts while raiding (7-15m is the best time period as the scammers are usually afk in that timeframe) as your stuff will get stolen."
+    embed2=discord.Embed(title="Disclaimer", description=message2, color=0x00ffcc)
     await interaction.followup.send(embed=embed)
+    await interaction.followup.send(embed2=embed2)
 
 @client.event
 async def on_ready():
