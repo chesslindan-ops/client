@@ -1,10 +1,30 @@
+import sys, types, os
+sys.modules['audioop'] = types.ModuleType('audioop')
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot alive!", 200
+
+def run():
+    port = int(os.getenv("PORT", 8080))
+    print(f"[DEBUG] Flask keep-alive running on port {port}")
+    try:
+        app.run(host='0.0.0.0', port=port)
+    except Exception as e:
+        print(f"[ERROR] Flask failed to start: {e}")
+
+def keep_alive():
+    import threading
+    t = threading.Thread(target=run)
+    t.daemon = True
+    t.start()
 import discord
 from discord import app_commands
 import aiohttp
 import asyncio
-import os
-from flask import Flask
-
 # Load secrets
 TOKEN = os.getenv("DISCORD_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
@@ -59,17 +79,3 @@ async def on_ready():
     await tree.sync()
     print(f"✅ Logged in as {client.user}")
     print("Slash command /links is now ready!")
-
-# Keep Flask and Discord bot alive together
-def run_bot():
-    loop = asyncio.get_event_loop()
-    loop.create_task(client.start(TOKEN))
-    loop.run_forever()
-
-if __name__ == "__main__":
-    # start the bot in background
-    import threading
-    threading.Thread(target=run_bot).start()
-    # run flask
-    port = int(os.getenv("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
