@@ -44,7 +44,16 @@ async def fetch_group_posts():
         content = post.get("body", "")
         found = re.findall(r"(https?://[^\s]+roblox\.com/[^\s]*)", content)
         links.extend(found)
-    return links
+    
+    # remove duplicates while preserving order
+    seen = set()
+    unique_links = []
+    for link in links:
+        if link not in seen:
+            seen.add(link)
+            unique_links.append(link)
+    
+    return unique_links
 
 @tree.command(name="links", description="Fetch recent roblox.com/share links from the group wall.")
 async def links_command(interaction: discord.Interaction):
@@ -55,8 +64,8 @@ async def links_command(interaction: discord.Interaction):
         await interaction.followup.send("No roblox.com/share links found 😢")
         return
 
-    message = "\n".join(links[:10])  # send up to 10 links
-    embed = discord.Embed(title="Latest Roblox Scammer Links", description=message, color=0x00ffcc)
+    message = "\n".join(links[:10])  # send up to 10 unique links
+    embed = discord.Embed(title="Latest Roblox Links", description=message, color=0x00ffcc)
     embed.set_footer(text="Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
@@ -66,9 +75,9 @@ async def on_ready():
     print(f"✅ Logged in as {client.user}")
     print("Slash command /links is ready!")
 
-# ---- Run Flask in background ----
+# ---- Run Flask in background thread ----
 flask_thread = threading.Thread(target=run_flask)
-flask_thread.start()  # keep-alive, non-daemon
+flask_thread.start()  # non-daemon to keep alive
 
 # ---- Run Discord bot in main thread ----
 client.run(TOKEN)
