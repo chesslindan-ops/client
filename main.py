@@ -55,7 +55,7 @@ async def fetch_group_posts():
     
     return unique_links
 
-@tree.command(name="links", description="Get scammer private server links!")
+@tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l")
 async def links_command(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
     links = await fetch_group_posts()
@@ -65,7 +65,7 @@ async def links_command(interaction: discord.Interaction):
         return
 
     message = "\n".join(links[:10])  # send up to 10 unique links
-    embed = discord.Embed(title="Latest Roblox Links", description=message, color=FF8C00)
+    embed = discord.Embed(title="Latest Roblox SAB Scammer Links", description=message, color=FF8C00)
     embed.set_footer(text="Quesadillo's Mansion | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
