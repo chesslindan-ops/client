@@ -1,81 +1,43 @@
-import sys, types, os
-sys.modules['audioop'] = types.ModuleType('audioop')
-from flask import Flask
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Bot alive!", 200
-
-def run():
-    port = int(os.getenv("PORT", 8080))
-    print(f"[DEBUG] Flask keep-alive running on port {port}")
-    try:
-        app.run(host='0.0.0.0', port=port)
-    except Exception as e:
-        print(f"[ERROR] Flask failed to start: {e}")
-
-def keep_alive():
-    import threading
-    t = threading.Thread(target=run)
-    t.daemon = True
-    t.start()
+import threading
+import os
 import discord
 from discord import app_commands
 import aiohttp
 import asyncio
-# Load secrets
+from flask import Flask
+
+# secrets
 TOKEN = os.getenv("DISCORD_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
 ROBLOX_COOKIE = os.getenv("ROBLOX_COOKIE")
 
-# Flask setup
+# Flask
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Bot alive!", 200
-keep_alive()
-# Discord bot setup
+
+def run_flask():
+    port = int(os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
+# start flask in background
+flask_thread = threading.Thread(target=run_flask)
+flask_thread.start()  # not daemon, so it keeps alive
+
+# Discord bot
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
-async def fetch_group_posts():
-    url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
-    headers = {"Cookie": f".ROBLOSECURITY={ROBLOX_COOKIE}"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as resp:
-            if resp.status != 200:
-                print(f"⚠️ Failed to fetch posts: {resp.status}")
-                return []
-            data = await resp.json()
-
-    links = []
-    for post in data.get("data", []):
-        content = post.get("body", "")
-        found = re.findall(r"(https?://[^\s]+roblox\.com/[^\s]*)", content)
-        links.extend(found)
-    return links
-
-@tree.command(name="links", description="Fetch recent roblox.com/share links from the group wall.")
-async def links_command(interaction: discord.Interaction):
-    await interaction.response.defer(thinking=True)
-    links = await fetch_group_posts()
-
-    if not links:
-        await interaction.followup.send("No roblox.com/share links found 😢")
-        return
-
-    message = "\n".join(links[:10])  # send up to 10 links
-    embed = discord.Embed(title="Latest Roblox Links", description=message, color=0x00ffcc)
-    embed.set_footer(text="Made by SAB-RS")
-    await interaction.followup.send(embed=embed)
+# ... your fetch_group_posts and commands here ...
 
 @client.event
 async def on_ready():
     await tree.sync()
     print(f"✅ Logged in as {client.user}")
     print("Slash command /links is now ready!")
+
+# run bot in main thread (blocking)
+client.run(TOKEN)
