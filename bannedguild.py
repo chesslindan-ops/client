@@ -10,6 +10,7 @@ from flask import Flask
 TOKEN = os.getenv("DISCORD_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
 ROBLOX_COOKIE = os.getenv("ROBLOX_COOKIE")
+BAN = os.getenv("BAN_REASON")
 
 # ---- Flask setup ----
 app = Flask(__name__)
@@ -64,7 +65,7 @@ async def links_command(interaction: discord.Interaction):
         await interaction.followup.send("No roblox.com/share links found 😢")
         return
 
-    message = "Guild/user has been blacklisted from using this service. Error code: TEST"  # send up to 10 unique links
+    message = ("Guild/user has been blacklisted from using this service. Error code: ", BAN)
     embed = discord.Embed(title="Links fetching failed ❌️⚠️", description=message, color=0xff0000)
     embed.set_footer(text="DM @h.aze.l for bug reports.| Made by SAB-RS")
     await interaction.followup.send(embed=embed)
