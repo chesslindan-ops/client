@@ -139,10 +139,8 @@ def owner_only_command(func):
             return
         await func(interaction, *args, **kwargs)
     return wrapper
-
 # ---- Admin commands ----
 @tree.command(name="ban_user", description="Owner-only")
-@app_commands.checks.default_permissions()
 @owner_only_command
 async def ban_user(interaction: discord.Interaction, user_id: str):
     try:
@@ -156,7 +154,6 @@ async def ban_user(interaction: discord.Interaction, user_id: str):
     await interaction.response.send_message(f"User `{uid}` has been banned.", ephemeral=True)
 
 @tree.command(name="unban_user", description="Owner-only")
-@app_commands.checks.default_permissions()
 @owner_only_command
 async def unban_user(interaction: discord.Interaction, user_id: str):
     try:
@@ -170,7 +167,6 @@ async def unban_user(interaction: discord.Interaction, user_id: str):
     await interaction.response.send_message(f"User `{uid}` has been unbanned.", ephemeral=True)
 
 @tree.command(name="ban_guild", description="Owner-only")
-@app_commands.checks.default_permissions()
 @owner_only_command
 async def ban_guild(interaction: discord.Interaction, guild_id: str):
     gid = to_int_gid(guild_id)
@@ -180,7 +176,6 @@ async def ban_guild(interaction: discord.Interaction, guild_id: str):
     save_json(BANNED_FILE, BANNED_GUILDS)
 
 @tree.command(name="unban_guild", description="Owner-only")
-@app_commands.checks.default_permissions()
 @owner_only_command
 async def unban_guild(interaction: discord.Interaction, guild_id: str):
     gid = to_int_gid(guild_id)
@@ -190,7 +185,6 @@ async def unban_guild(interaction: discord.Interaction, guild_id: str):
     save_json(BANNED_FILE, BANNED_GUILDS)
 
 @tree.command(name="ban_invite", description="Owner-only")
-@app_commands.checks.default_permissions()
 @owner_only_command
 async def ban_invite(interaction: discord.Interaction, invite: str):
     m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
@@ -212,14 +206,12 @@ async def ban_invite(interaction: discord.Interaction, invite: str):
     save_json(BANNED_FILE, BANNED_GUILDS)
 
 @tree.command(name="list_banned", description="Owner-only")
-@app_commands.checks.default_permissions()
 @owner_only_command
 async def list_banned(interaction: discord.Interaction):
     text = "\n".join([str(gid) for gid in BANNED_GUILDS])
     await interaction.response.send_message(f"Banned guilds:\n{text}", ephemeral=True)
 
 @tree.command(name="list_removed", description="Owner-only")
-@app_commands.checks.default_permissions()
 @owner_only_command
 async def list_removed(interaction: discord.Interaction):
     text = "\n".join([f"{x['name']} | {x['id']}" for x in REMOVED_GUILDS])
