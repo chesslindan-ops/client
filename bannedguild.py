@@ -59,11 +59,7 @@ async def fetch_group_posts():
 @tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
 async def links_command(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
-    links = await fetch_group_posts()
-
-    if not links:
-        await interaction.followup.send("No roblox.com/share links found 😢")
-        return
+    
 
     message = ("Guild/user has been blacklisted from using this service. Error code: ", BAN)
     embed = discord.Embed(title="Links fetching failed ❌️⚠️", description=message, color=0xff0000)
@@ -76,6 +72,7 @@ async def on_ready():
     await tree.sync()
     print(f"✅ Logged in as {client.user}")
     print("Slash command /links is ready!")
+    print("Banned Guild", BAN)
 
 # ---- Run Flask in background thread ----
 flask_thread = threading.Thread(target=run_flask)
