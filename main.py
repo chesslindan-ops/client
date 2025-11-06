@@ -107,7 +107,7 @@ async def fetch_group_posts():
             unique_links.append(l)
     return unique_links
 
-# ---- /links command with maintenance mode ----
+# ---- /links command ----
 @tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
 async def links_command(interaction: discord.Interaction):
     if await check_user_ban(interaction):
@@ -143,16 +143,13 @@ async def links_command(interaction: discord.Interaction):
         )
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
-    # ---- Owner-only commands ----
+# ---- Owner-only commands ----
 
 # Maintenance toggle
-@tree.command(
-    name="maintenance",
-    description="Toggle maintenance mode (owner-only)",
-    default_permission=False
-)
+@tree.command(name="maintenance", description="Toggle maintenance mode (owner-only)")
 async def maintenance(interaction: discord.Interaction, enable: bool):
     if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
     save_maintenance(enable)
     state_text = "ENABLED 🟠" if enable else "DISABLED ✅"
@@ -162,6 +159,7 @@ async def maintenance(interaction: discord.Interaction, enable: bool):
 @tree.command(name="ban_user", description="Owner-only")
 async def ban_user(interaction: discord.Interaction, user_id: str):
     if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
     try:
         uid = int(user_id)
@@ -179,6 +177,7 @@ async def ban_user(interaction: discord.Interaction, user_id: str):
 @tree.command(name="unban_user", description="Owner-only")
 async def unban_user(interaction: discord.Interaction, user_id: str):
     if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
     try:
         uid = int(user_id)
@@ -196,6 +195,7 @@ async def unban_user(interaction: discord.Interaction, user_id: str):
 @tree.command(name="ban_guild", description="Owner-only")
 async def ban_guild(interaction: discord.Interaction, guild_id: str):
     if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
     gid = to_int_gid(guild_id)
     if not gid:
@@ -212,6 +212,7 @@ async def ban_guild(interaction: discord.Interaction, guild_id: str):
 @tree.command(name="unban_guild", description="Owner-only")
 async def unban_guild(interaction: discord.Interaction, guild_id: str):
     if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
     gid = to_int_gid(guild_id)
     if not gid:
@@ -228,6 +229,7 @@ async def unban_guild(interaction: discord.Interaction, guild_id: str):
 @tree.command(name="ban_invite", description="Owner-only")
 async def ban_invite(interaction: discord.Interaction, invite: str):
     if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
     m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
     if not m:
@@ -263,6 +265,7 @@ async def ban_invite(interaction: discord.Interaction, invite: str):
 @tree.command(name="list_banned", description="Owner-only")
 async def list_banned(interaction: discord.Interaction):
     if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
     if not BANNED_GUILDS:
         await interaction.response.send_message("No banned guilds.", ephemeral=True)
@@ -273,6 +276,7 @@ async def list_banned(interaction: discord.Interaction):
 @tree.command(name="list_removed", description="Owner-only")
 async def list_removed(interaction: discord.Interaction):
     if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
     if not REMOVED_GUILDS:
         await interaction.response.send_message("No recorded removed guilds.", ephemeral=True)
