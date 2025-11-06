@@ -66,9 +66,6 @@ def to_int_gid(val):
     except:
         return None
 
-async def is_owner(interaction: discord.Interaction) -> bool:
-    return interaction.user.id == OWNER_ID
-
 # ---- Fetch Roblox group posts ----
 async def fetch_group_posts():
     url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
@@ -132,17 +129,11 @@ async def links_command(interaction: discord.Interaction):
     embed.set_footer(text="DM @h.aze.l for bug reports.| Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
-# ---- Owner-only command decorator (true hidden) ----
-def owner_only_command(func):
-    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
-        if interaction.user.id != OWNER_ID:
-            return
-        await func(interaction, *args, **kwargs)
-    return wrapper
-# ---- Admin commands ----
+# ---- Owner-only commands ----
 @tree.command(name="ban_user", description="Owner-only")
-@owner_only_command
 async def ban_user(interaction: discord.Interaction, user_id: str):
+    if interaction.user.id != OWNER_ID:
+        return
     try:
         uid = int(user_id)
     except:
@@ -154,8 +145,9 @@ async def ban_user(interaction: discord.Interaction, user_id: str):
     await interaction.response.send_message(f"User `{uid}` has been banned.", ephemeral=True)
 
 @tree.command(name="unban_user", description="Owner-only")
-@owner_only_command
 async def unban_user(interaction: discord.Interaction, user_id: str):
+    if interaction.user.id != OWNER_ID:
+        return
     try:
         uid = int(user_id)
     except:
@@ -167,17 +159,18 @@ async def unban_user(interaction: discord.Interaction, user_id: str):
     await interaction.response.send_message(f"User `{uid}` has been unbanned.", ephemeral=True)
 
 @tree.command(name="ban_guild", description="Owner-only")
-@owner_only_command
 async def ban_guild(interaction: discord.Interaction, guild_id: str):
+    if interaction.user.id != OWNER_ID:
+        return
     gid = to_int_gid(guild_id)
     if not gid: return
     if gid in BANNED_GUILDS: return
     BANNED_GUILDS.append(gid)
     save_json(BANNED_FILE, BANNED_GUILDS)
-
 @tree.command(name="unban_guild", description="Owner-only")
-@owner_only_command
 async def unban_guild(interaction: discord.Interaction, guild_id: str):
+    if interaction.user.id != OWNER_ID:
+        return
     gid = to_int_gid(guild_id)
     if not gid: return
     if gid not in BANNED_GUILDS: return
@@ -185,8 +178,9 @@ async def unban_guild(interaction: discord.Interaction, guild_id: str):
     save_json(BANNED_FILE, BANNED_GUILDS)
 
 @tree.command(name="ban_invite", description="Owner-only")
-@owner_only_command
 async def ban_invite(interaction: discord.Interaction, invite: str):
+    if interaction.user.id != OWNER_ID:
+        return
     m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
     if not m: return
     code = m.group(1)
@@ -206,16 +200,24 @@ async def ban_invite(interaction: discord.Interaction, invite: str):
     save_json(BANNED_FILE, BANNED_GUILDS)
 
 @tree.command(name="list_banned", description="Owner-only")
-@owner_only_command
 async def list_banned(interaction: discord.Interaction):
+    if interaction.user.id != OWNER_ID:
+        return
+    if not BANNED_GUILDS:
+        await interaction.response.send_message("No banned guilds.", ephemeral=True)
+        return
     text = "\n".join([str(gid) for gid in BANNED_GUILDS])
-    await interaction.response.send_message(f"Banned guilds:\n{text}", ephemeral=True)
+    await interaction.response.send_message(f"**Banned guilds:**\n{text}", ephemeral=True)
 
 @tree.command(name="list_removed", description="Owner-only")
-@owner_only_command
 async def list_removed(interaction: discord.Interaction):
+    if interaction.user.id != OWNER_ID:
+        return
+    if not REMOVED_GUILDS:
+        await interaction.response.send_message("No recorded removed guilds.", ephemeral=True)
+        return
     text = "\n".join([f"{x['name']} | {x['id']}" for x in REMOVED_GUILDS])
-    await interaction.response.send_message(f"Removed guilds:\n{text}", ephemeral=True)
+    await interaction.response.send_message(f"**Removed guilds:**\n{text}", ephemeral=True)
 
 # ---- Events ----
 @client.event
