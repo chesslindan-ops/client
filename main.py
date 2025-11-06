@@ -17,6 +17,7 @@ ROBLOX_COOKIE = os.getenv("ROBLOX_COOKIE")
 BANNED_FILE = "banned_guilds.json"
 REMOVED_LOG = "removed_guilds.json"
 BANNED_USERS_FILE = "banned_users.json"
+MAINT_FILE = "maintenance.json"
 
 def load_json(path, default):
     try:
@@ -38,6 +39,12 @@ def save_json(path, data):
 BANNED_GUILDS = load_json(BANNED_FILE, [])
 REMOVED_GUILDS = load_json(REMOVED_LOG, [])
 BANNED_USERS = load_json(BANNED_USERS_FILE, [])
+MAINTENANCE = load_json(MAINT_FILE, {}).get("enabled", False)
+
+def save_maintenance(state: bool):
+    global MAINTENANCE
+    MAINTENANCE = state
+    save_json(MAINT_FILE, {"enabled": state})
 
 # ---- Owner ID ----
 OWNER_ID = 1329161792936476683
@@ -79,7 +86,6 @@ async def check_user_ban(interaction: discord.Interaction):
 async def fetch_group_posts():
     url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
     headers = {"Cookie": f".ROBLOSECURITY={ROBLOX_COOKIE}"} if ROBLOX_COOKIE else {}
-
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as resp:
             if resp.status != 200:
@@ -101,7 +107,7 @@ async def fetch_group_posts():
             unique_links.append(l)
     return unique_links
 
-# ---- /links command ----
+# ---- /links command with maintenance mode ----
 @tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
 async def links_command(interaction: discord.Interaction):
     if await check_user_ban(interaction):
@@ -123,10 +129,34 @@ async def links_command(interaction: discord.Interaction):
         return
 
     message = "\n".join(links[:10])
-    embed = discord.Embed(title="Latest SAB Scammer Links 🔗⚠️", description=message, color=0x00ffcc)
+    if MAINTENANCE:
+        embed = discord.Embed(
+            title="⚠️ Maintenance Mode Active 🟠 | Latest SAB Scammer Links 🔗",
+            description=f"⚠️ The bot is currently in maintenance mode and may experience issues.\n\n{message}",
+            color=0xFFA500
+        )
+    else:
+        embed = discord.Embed(
+            title="Latest SAB Scammer Links 🔗⚠️",
+            description=message,
+            color=0x00ffcc
+        )
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
-# ---- Owner-only commands ----
+    # ---- Owner-only commands ----
+
+# Maintenance toggle
+@tree.command(
+    name="maintenance",
+    description="Toggle maintenance mode (owner-only)",
+    default_permission=False
+)
+async def maintenance(interaction: discord.Interaction, enable: bool):
+    if interaction.user.id != OWNER_ID:
+        return
+    save_maintenance(enable)
+    state_text = "ENABLED 🟠" if enable else "DISABLED ✅"
+    await interaction.response.send_message(f"Maintenance mode {state_text}", ephemeral=True)
 
 # Ban a user
 @tree.command(name="ban_user", description="Owner-only")
@@ -260,8 +290,9 @@ async def on_ready():
     for g in client.guilds:
         print(f"{g.name} | {g.id}")
     print("_________________________")
-    print(f"Currently banned guild ids: {BANNED_GUILDS}")
-    print(f"Currently banned user ids: {BANNED_USERS}")
+    print(f"Banned guilds: {BANNED_GUILDS}")
+    print(f"Banned users: {BANNED_USERS}")
+    print(f"Maintenance mode: {'ON 🟠' if MAINTENANCE else 'OFF ✅'}")
 
 @client.event
 async def on_guild_join(guild):
