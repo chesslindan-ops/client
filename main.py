@@ -124,7 +124,7 @@ async def links_command(interaction: discord.Interaction):
             title="Access Denied ❌ | Error JS0007",
             description="⚠️ This guild is banned from using this bot. Contact @h.aze.l to appeal. Case number: ", numno,
             color=discord.Color.red()
-        )
+        
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
