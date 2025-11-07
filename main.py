@@ -47,11 +47,9 @@ def save_tempbans():
 
 # ---- Flask keepalive ----
 app = Flask(__name__)
-
 @app.route('/')
 def home():
     return "Bot alive!", 200
-
 def run_flask():
     port = int(os.getenv("PORT", 8080))
     print(f"[DEBUG] Flask running on port {port}")
@@ -68,9 +66,6 @@ def to_int_gid(val):
         return int(val)
     except:
         return None
-
-async def is_owner(interaction: discord.Interaction) -> bool:
-    return interaction.user.id == OWNER_ID
 
 def is_tempbanned(user_id: int):
     now = time.time()
@@ -97,6 +92,15 @@ async def check_user_ban(interaction: discord.Interaction):
         await interaction.response.send_message(msg, ephemeral=True)
         return True
     return False
+
+# ---- Owner-only decorator with friendly message ----
+def owner_only():
+    async def predicate(interaction: discord.Interaction):
+        if interaction.user.id != OWNER_ID:
+            await interaction.response.send_message("❌ You are not allowed to run this command.", ephemeral=True)
+            return False
+        return True
+    return app_commands.check(predicate)
 
 # ---- Fetch group posts ----
 async def fetch_group_posts():
@@ -126,6 +130,7 @@ MAINTENANCE = False
 def save_maintenance(state: bool):
     global MAINTENANCE
     MAINTENANCE = state
+
 # ---- /links command ----
 @tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
 async def links_command(interaction: discord.Interaction):
@@ -162,14 +167,7 @@ async def links_command(interaction: discord.Interaction):
         )
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
-
-# ---- Owner-only decorator ----
-def owner_only():
-    def predicate(interaction: discord.Interaction):
-        return interaction.user.id == OWNER_ID
-    return app_commands.check(predicate)
-
-# ---- Ban/unban users ----
+    # ---- Owner-only user commands ----
 @tree.command(name="ban_user", description="Ban a user (owner-only)")
 @owner_only()
 @app_commands.describe(user_id="User ID to ban")
@@ -213,7 +211,6 @@ async def unban_user(interaction: discord.Interaction, user_id: str):
     else:
         await interaction.response.send_message("⚠️ User was not banned.", ephemeral=True)
 
-# ---- Tempban ----
 @tree.command(name="tempban", description="Temporarily ban a user (owner-only)")
 @owner_only()
 @app_commands.describe(user_id="User ID to tempban", duration_minutes="Duration in minutes")
@@ -230,9 +227,9 @@ async def tempban(interaction: discord.Interaction, user_id: str, duration_minut
     TEMP_BANS.append({"id": uid, "expires": expires_at, "timestamp": time.time()})
     save_tempbans()
     exp_time = datetime.datetime.fromtimestamp(expires_at).strftime("%Y-%m-%d %H:%M:%S")
-    await interaction.response.send_message(f"✅ User `{uid}` tempbanned until {exp_time}.", ephemeral=True)
+    await interaction.response.send_message(f"✅ User `{uid}` temporarily banned until {exp_time}.", ephemeral=True)
 
-# ---- Ban/unban guilds ----
+# ---- Owner-only guild commands ----
 @tree.command(name="ban_guild", description="Ban a guild (owner-only)")
 @owner_only()
 @app_commands.describe(guild_id="Guild ID to ban")
@@ -260,7 +257,6 @@ async def unban_guild(interaction: discord.Interaction, guild_id: str):
     save_json(BANNED_FILE, BANNED_GUILDS)
     await interaction.response.send_message(f"✅ Guild `{gid}` unbanned.", ephemeral=True)
 
-# ---- Ban by invite ----
 @tree.command(name="ban_invite", description="Ban a guild by invite (owner-only)")
 @owner_only()
 @app_commands.describe(invite="Invite code or URL")
@@ -290,7 +286,7 @@ async def ban_invite(interaction: discord.Interaction, invite: str):
     save_json(BANNED_FILE, BANNED_GUILDS)
     await interaction.response.send_message(f"✅ Guild **{name}** banned.", ephemeral=True)
 
-# ---- List banned / removed ----
+# ---- List commands ----
 @tree.command(name="list_banned", description="List all banned guilds (owner-only)")
 @owner_only()
 async def list_banned(interaction: discord.Interaction):
