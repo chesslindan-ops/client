@@ -7,8 +7,7 @@ import discord
 from discord import app_commands
 import aiohttp
 from flask import Flask
-import random
-numno=random.randint(1000000, 9999999)
+
 # ---- Secrets ----
 TOKEN = os.getenv("DISCORD_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
@@ -77,7 +76,7 @@ def to_int_gid(val):
 async def check_user_ban(interaction: discord.Interaction):
     if interaction.user.id in BANNED_USERS:
         await interaction.response.send_message(
-            "Error ⚠️: User is banned from using this program ❌ | DM h.aze.l to appeal. Case Number:", numno,
+            "Error ⚠️: User is banned from using this program ❌ | DM h.aze.l to appeal.",
             ephemeral=True
         )
         return True
@@ -120,11 +119,11 @@ async def links_command(interaction: discord.Interaction):
         return
 
     if interaction.guild_id in BANNED_GUILDS:
-        embed = discord.Embed
+        embed = discord.Embed(
             title="Access Denied ❌ | Error JS0007",
-            description="⚠️ This guild is banned from using this bot. Contact @h.aze.l to appeal. Case number: ", numno,
+            description="⚠️ This guild is banned from using this bot. Contact @h.aze.l to appeal.",
             color=discord.Color.red()
-        
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
