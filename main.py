@@ -101,14 +101,14 @@ async def fetch_group_posts():
 @tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
 async def links_command(interaction: discord.Interaction):
     if interaction.guild_id in BANNED_GUILDS:
-        embed = discord.Embed(title="Access Denied ❌️",
-                              description="ℹ️ This bot is no longer associated with this server.",
+        embed = discord.Embed(title="Access Denied ❌️ JS0007",
+                              description="⚠️ This guils is blacklisted from using this bot. Please contact @h.aze.l to appeal.",
                               color=discord.Color.red())
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     if interaction.user.id in BANNED_USERS:
         embed = discord.Embed(title="Access Denied ❌️",
-                              description="ℹ️ You are banned from using this bot.",
+                              description="❌️ You are permanently banned from using this bot. Contact @h.aze.l to appeal.",
                               color=discord.Color.red())
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
