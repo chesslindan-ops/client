@@ -120,7 +120,7 @@ async def links_command(interaction: discord.Interaction):
         return
 
     if interaction.guild_id in BANNED_GUILDS:
-        embed = discord.Embed(
+        embed = discord.Embed
             title="Access Denied ❌ | Error JS0007",
             description="⚠️ This guild is banned from using this bot. Contact @h.aze.l to appeal. Case number: ", numno,
             color=discord.Color.red()
