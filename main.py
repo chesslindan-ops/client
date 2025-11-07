@@ -102,7 +102,7 @@ async def fetch_group_posts():
 async def links_command(interaction: discord.Interaction):
     if interaction.guild_id in BANNED_GUILDS:
         embed = discord.Embed(title="Access Denied ❌️ JS0007",
-                              description="⚠️ This guils is blacklisted from using this bot. Please contact @h.aze.l to appeal.",
+                              description="⚠️ This guild is blacklisted from using this bot. Please contact @h.aze.l to appeal.",
                               color=discord.Color.red())
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
