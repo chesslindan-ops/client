@@ -126,7 +126,7 @@ async def links_command(interaction: discord.Interaction):
     if interaction.guild_id in BANNED_GUILDS:
         embed = discord.Embed(
             title="Access Denied ❌️",
-            description="ℹ️ This bot is no longer associated with this server.",
+            description="This server is blacklisted from using this bot. Contact @h.aze.l to appeal.",
             color=discord.Color.red()
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
