@@ -7,7 +7,8 @@ import discord
 from discord import app_commands
 import aiohttp
 from flask import Flask
-
+import random
+numno=random.randint(1000000, 9999999)
 # ---- Secrets ----
 TOKEN = os.getenv("DISCORD_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
@@ -76,11 +77,16 @@ def to_int_gid(val):
 async def check_user_ban(interaction: discord.Interaction):
     if interaction.user.id in BANNED_USERS:
         await interaction.response.send_message(
-            "Error ⚠️: User is banned from using this program ❌ | DM h.aze.l to appeal.",
+            "Error ⚠️: User is banned from using this program ❌ | DM h.aze.l to appeal. Case Number:", numno,
             ephemeral=True
         )
         return True
     return False
+
+def owner_only():
+    async def predicate(interaction: discord.Interaction):
+        return interaction.user.id == OWNER_ID
+    return app_commands.check(predicate)
 
 # ---- Fetch Roblox group posts ----
 async def fetch_group_posts():
@@ -116,7 +122,7 @@ async def links_command(interaction: discord.Interaction):
     if interaction.guild_id in BANNED_GUILDS:
         embed = discord.Embed(
             title="Access Denied ❌ | Error JS0007",
-            description="⚠️ This guild is banned from using this bot. Contact @h.aze.l to appeal.",
+            description="⚠️ This guild is banned from using this bot. Contact @h.aze.l to appeal. Case number: ", numno,
             color=discord.Color.red()
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -147,20 +153,16 @@ async def links_command(interaction: discord.Interaction):
 
 # Maintenance toggle
 @tree.command(name="maintenance", description="Toggle maintenance mode (owner-only)")
+@owner_only()
 async def maintenance(interaction: discord.Interaction, enable: bool):
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
-        return
     save_maintenance(enable)
     state_text = "ENABLED 🟠" if enable else "DISABLED ✅"
     await interaction.response.send_message(f"Maintenance mode {state_text}", ephemeral=True)
 
 # Ban a user
-@tree.command(name="ban_user", description="Owner-only")
+@tree.command(name="ban_user", description="Ban a user from using the bot (owner-only)")
+@owner_only()
 async def ban_user(interaction: discord.Interaction, user_id: str):
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
-        return
     try:
         uid = int(user_id)
     except:
@@ -174,11 +176,9 @@ async def ban_user(interaction: discord.Interaction, user_id: str):
     await interaction.response.send_message(f"✅ User `{uid}` has been banned.", ephemeral=True)
 
 # Unban a user
-@tree.command(name="unban_user", description="Owner-only")
+@tree.command(name="unban_user", description="Unban a user (owner-only)")
+@owner_only()
 async def unban_user(interaction: discord.Interaction, user_id: str):
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
-        return
     try:
         uid = int(user_id)
     except:
@@ -192,11 +192,9 @@ async def unban_user(interaction: discord.Interaction, user_id: str):
     await interaction.response.send_message(f"✅ User `{uid}` has been unbanned.", ephemeral=True)
 
 # Ban a guild by ID
-@tree.command(name="ban_guild", description="Owner-only")
+@tree.command(name="ban_guild", description="Ban a guild (owner-only)")
+@owner_only()
 async def ban_guild(interaction: discord.Interaction, guild_id: str):
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
-        return
     gid = to_int_gid(guild_id)
     if not gid:
         await interaction.response.send_message("❌ Invalid guild ID.", ephemeral=True)
@@ -209,11 +207,9 @@ async def ban_guild(interaction: discord.Interaction, guild_id: str):
     await interaction.response.send_message(f"✅ Guild `{gid}` has been banned.", ephemeral=True)
 
 # Unban a guild by ID
-@tree.command(name="unban_guild", description="Owner-only")
+@tree.command(name="unban_guild", description="Unban a guild (owner-only)")
+@owner_only()
 async def unban_guild(interaction: discord.Interaction, guild_id: str):
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
-        return
     gid = to_int_gid(guild_id)
     if not gid:
         await interaction.response.send_message("❌ Invalid guild ID.", ephemeral=True)
@@ -226,11 +222,9 @@ async def unban_guild(interaction: discord.Interaction, guild_id: str):
     await interaction.response.send_message(f"✅ Guild `{gid}` has been unbanned.", ephemeral=True)
 
 # Ban a guild via invite
-@tree.command(name="ban_invite", description="Owner-only")
+@tree.command(name="ban_invite", description="Ban a guild using an invite (owner-only)")
+@owner_only()
 async def ban_invite(interaction: discord.Interaction, invite: str):
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
-        return
     m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
     if not m:
         await interaction.response.send_message("❌ Could not parse invite.", ephemeral=True)
@@ -247,37 +241,29 @@ async def ban_invite(interaction: discord.Interaction, invite: str):
     if not guild:
         await interaction.response.send_message("❌ Invite resolved but no guild info.", ephemeral=True)
         return
-    gid = guild.get("id")
+    gid = int(guild.get("id"))
     name = guild.get("name", "Unknown")
-    try:
-        gid_int = int(gid)
-    except:
-        await interaction.response.send_message("❌ Could not parse guild ID from invite.", ephemeral=True)
+    if gid in BANNED_GUILDS:
+        await interaction.response.send_message(f"⚠️ Guild **{name}** (`{gid}`) already banned.", ephemeral=True)
         return
-    if gid_int in BANNED_GUILDS:
-        await interaction.response.send_message(f"⚠️ Guild **{name}** (`{gid}`) is already banned.", ephemeral=True)
-        return
-    BANNED_GUILDS.append(gid_int)
+    BANNED_GUILDS.append(gid)
     save_json(BANNED_FILE, BANNED_GUILDS)
     await interaction.response.send_message(f"✅ Guild **{name}** (`{gid}`) has been banned.", ephemeral=True)
 
-# ---- List banned / removed ----
-@tree.command(name="list_banned", description="Owner-only")
+# List banned guilds
+@tree.command(name="list_banned", description="List banned guilds (owner-only)")
+@owner_only()
 async def list_banned(interaction: discord.Interaction):
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
-        return
     if not BANNED_GUILDS:
         await interaction.response.send_message("No banned guilds.", ephemeral=True)
         return
     text = "\n".join([str(gid) for gid in BANNED_GUILDS])
     await interaction.response.send_message(f"**Banned guilds:**\n{text}", ephemeral=True)
 
-@tree.command(name="list_removed", description="Owner-only")
+# List removed guilds
+@tree.command(name="list_removed", description="List removed guilds (owner-only)")
+@owner_only()
 async def list_removed(interaction: discord.Interaction):
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
-        return
     if not REMOVED_GUILDS:
         await interaction.response.send_message("No recorded removed guilds.", ephemeral=True)
         return
@@ -289,8 +275,8 @@ async def list_removed(interaction: discord.Interaction):
 async def on_ready():
     await tree.sync()
     print(f"✅ Logged in as {client.user}")
-    print("Slash commands synced.")
-    print("\nGuilds bot is in:")
+    print("Slash commands synced.\n")
+    print("Guilds bot is in:")
     for g in client.guilds:
         print(f"{g.name} | {g.id}")
     print("_________________________")
