@@ -101,26 +101,6 @@ async def check_user_ban(interaction: discord.Interaction):
         return True
     return False
 
-# ---- Modlog helper ----
-MODLOG_CHANNEL_ID = 1430175693223890994
-
-async def send_modlog(action: str, target: str, actor: str, severity: str):
-    """Send a modlog embed with severity coloring."""
-    colors = {
-        "low": 0x00ff00,       # green
-        "medium": 0xffa500,    # orange
-        "high": 0xff0000       # red
-    }
-    color = colors.get(severity, 0x0000ff)
-    embed = discord.Embed(
-        title=f"Moderation Action: {action}",
-        description=f"**Target:** {target}\n**Performed by:** {actor}",
-        color=color
-    )
-    channel = client.get_channel(MODLOG_CHANNEL_ID)
-    if channel:
-        await channel.send(embed=embed)
-
 # ---- Fetch Roblox group posts ----
 async def fetch_group_posts():
     url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
@@ -178,9 +158,9 @@ async def links_command(interaction: discord.Interaction):
         embed = discord.Embed(
             title="Latest SAB Scammer Links 🔗⚠️",
             description=message,
-            color=0x0000ff
+            color=0x00ffcc
         )
-    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS in collaboration with **Quesadillo's Mansion**")
+    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
 # ---- Owner-only commands ----
@@ -192,7 +172,6 @@ async def maintenance(interaction: discord.Interaction, enable: bool):
     save_maintenance(enable)
     state_text = "ENABLED 🟠" if enable else "DISABLED ✅"
     await interaction.response.send_message(f"Maintenance mode {state_text}", ephemeral=True)
-    await send_modlog("Maintenance Mode", f"Set to {'ENABLED' if enable else 'DISABLED'}", f"<@{interaction.user.id}>", "medium")
 
 # ---- User bans ----
 @tree.command(name="ban_user", description="Owner-only")
@@ -211,7 +190,6 @@ async def ban_user(interaction: discord.Interaction, user_id: str):
     BANNED_USERS.append(uid)
     save_json(BANNED_USERS_FILE, BANNED_USERS)
     await interaction.response.send_message(f"✅ User `{uid}` has been banned.", ephemeral=True)
-    await send_modlog("Ban User", f"<@{uid}> (`{uid}`)", f"<@{interaction.user.id}>", "high")
 
 @tree.command(name="unban_user", description="Owner-only")
 async def unban_user(interaction: discord.Interaction, user_id: str):
@@ -229,7 +207,6 @@ async def unban_user(interaction: discord.Interaction, user_id: str):
     BANNED_USERS.remove(uid)
     save_json(BANNED_USERS_FILE, BANNED_USERS)
     await interaction.response.send_message(f"✅ User `{uid}` has been unbanned.", ephemeral=True)
-    await send_modlog("Unban User", f"<@{uid}> (`{uid}`)", f"<@{interaction.user.id}>", "low")
 
 # ---- Tempban/untempban ----
 @tree.command(name="tempban_user", description="Owner-only, temp ban user (minutes)")
@@ -246,7 +223,6 @@ async def tempban_user(interaction: discord.Interaction, user_id: str, minutes: 
     TEMP_BANS.append({"user_id": uid, "expires_at": expires_at})
     save_json(TEMP_BANS_FILE, TEMP_BANS)
     await interaction.response.send_message(f"✅ User `{uid}` has been temporarily banned for {minutes} minutes.", ephemeral=True)
-    await send_modlog("Tempban User", f"<@{uid}> (`{uid}`) for {minutes} mins", f"<@{interaction.user.id}>", "medium")
 
 @tree.command(name="untempban_user", description="Owner-only, remove tempban")
 async def untempban_user(interaction: discord.Interaction, user_id: str):
@@ -262,7 +238,6 @@ async def untempban_user(interaction: discord.Interaction, user_id: str):
     TEMP_BANS = [b for b in TEMP_BANS if b["user_id"] != uid]
     save_json(TEMP_BANS_FILE, TEMP_BANS)
     await interaction.response.send_message(f"✅ User `{uid}` is no longer temporarily banned.", ephemeral=True)
-    await send_modlog("Un-tempban User", f"<@{uid}> (`{uid}`)", f"<@{interaction.user.id}>", "low")
 
 # ---- Guild bans ----
 @tree.command(name="ban_guild", description="Owner-only")
@@ -280,7 +255,6 @@ async def ban_guild(interaction: discord.Interaction, guild_id: str):
     BANNED_GUILDS.append(gid)
     save_json(BANNED_FILE, BANNED_GUILDS)
     await interaction.response.send_message(f"✅ Guild `{gid}` has been banned.", ephemeral=True)
-    await send_modlog("Ban Guild", f"`{gid}`", f"<@{interaction.user.id}>", "high")
 
 @tree.command(name="unban_guild", description="Owner-only")
 async def unban_guild(interaction: discord.Interaction, guild_id: str):
@@ -297,18 +271,20 @@ async def unban_guild(interaction: discord.Interaction, guild_id: str):
     BANNED_GUILDS.remove(gid)
     save_json(BANNED_FILE, BANNED_GUILDS)
     await interaction.response.send_message(f"✅ Guild `{gid}` has been unbanned.", ephemeral=True)
-    await send_modlog("Unban Guild", f"`{gid}`", f"<@{interaction.user.id}>", "low")
 
-# ---- Ban via invite ----
+# ---- Ban via invite (FIXED) ----
 @tree.command(name="ban_invite", description="Owner-only")
 async def ban_invite(interaction: discord.Interaction, invite: str):
     if interaction.user.id not in OWNER_IDS:
         await interaction.response.send_message("❌ You cannot use this command.", ephemeral=True)
         return
-    m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
+
+    invite = invite.strip().rstrip("/")
+    m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)", invite)
     if not m:
         await interaction.response.send_message("❌ Could not parse invite.", ephemeral=True)
         return
+
     code = m.group(1)
     url = f"https://discord.com/api/v10/invites/{code}?with_counts=false"
     async with aiohttp.ClientSession() as session:
@@ -317,24 +293,25 @@ async def ban_invite(interaction: discord.Interaction, invite: str):
                 await interaction.response.send_message(f"❌ Failed to resolve invite (HTTP {resp.status}).", ephemeral=True)
                 return
             data = await resp.json()
+
     guild = data.get("guild")
     if not guild:
         await interaction.response.send_message("❌ Invite resolved but no guild info.", ephemeral=True)
         return
-    gid = guild.get("id")
-    name = guild.get("name", "Unknown")
+
     try:
-        gid_int = int(gid)
+        gid_int = int(guild["id"])
     except:
         await interaction.response.send_message("❌ Could not parse guild ID from invite.", ephemeral=True)
         return
+
     if gid_int in BANNED_GUILDS:
-        await interaction.response.send_message(f"⚠️ Guild **{name}** (`{gid}`) is already banned.", ephemeral=True)
+        await interaction.response.send_message(f"⚠️ Guild **{guild.get('name','Unknown')}** (`{gid_int}`) is already banned.", ephemeral=True)
         return
+
     BANNED_GUILDS.append(gid_int)
     save_json(BANNED_FILE, BANNED_GUILDS)
-    await interaction.response.send_message(f"✅ Guild **{name}** (`{gid}`) has been banned.", ephemeral=True)
-    await send_modlog("Ban Guild via Invite", f"**{name}** (`{gid}`)", f"<@{interaction.user.id}>", "high")
+    await interaction.response.send_message(f"✅ Guild **{guild.get('name','Unknown')}** (`{gid_int}`) has been banned.", ephemeral=True)
 
 # ---- List banned/removed ----
 @tree.command(name="list_banned", description="Owner-only")
