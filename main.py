@@ -14,7 +14,7 @@ import asyncio
 TOKEN = os.getenv("DISCORD_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
 ROBLOX_COOKIE = os.getenv("ROBLOX_COOKIE")
-OWNER_IDS = [1329161792936476683, 903569932791463946]  # Owner user IDs
+OWNER_IDS = [1329161792936476683, 903569932791463946]  # Owner IDs
 MODLOG_CHANNEL = 1430175693223890994  # Modlog channel ID
 
 # ---- File storage ----
@@ -45,9 +45,13 @@ MAINTENANCE = load_json(MAINT_FILE, {"enabled": False})
 app = Flask(__name__)
 @app.route('/')
 def home(): return "Bot alive!", 200
+
 def run_flask():
-    port = int(os.getenv("PORT", 8080, 8080))
+    port = int(os.getenv("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
+flask_thread = threading.Thread(target=run_flask, daemon=True)
+flask_thread.start()
 
 # ---- Discord bot setup ----
 intents = discord.Intents.default()
@@ -165,7 +169,7 @@ async def unban_guild(interaction: discord.Interaction, guild_id: str):
     await interaction.response.send_message(f"✅ Unbanned guild `{gid}`.", ephemeral=True)
     await log_mod(f"Unbanned guild {gid} by {interaction.user}.")
 
-# ---- Tempban user ----
+# ---- Tempban / Unban User ----
 @tree.command(name="tempban", description="Temporarily ban a user (minutes)")
 @app_commands.describe(user="User to ban", minutes="Duration in minutes")
 async def tempban(interaction: discord.Interaction, user: discord.User, minutes: int):
@@ -213,9 +217,7 @@ async def maintenance(interaction: discord.Interaction):
 async def on_ready():
     await tree.sync()
     print(f"✅ Logged in as {client.user}")
-    print("Guilds:")
-    for g in client.guilds:
-        print(f"{g.name} | {g.id}")
+    for g in client.guilds: print(f"{g.name} | {g.id}")
 
 @client.event
 async def on_guild_join(guild):
@@ -227,25 +229,25 @@ async def on_guild_remove(guild):
     REMOVED_GUILDS.append({"id": guild.id, "name": guild.name})
     save_json(REMOVED_LOG, REMOVED_GUILDS)
 
-# ---- Run Flask ----
-flask_thread = threading.Thread(target=run_flask)
-flask_thread.start()
+# ---- Setup hook for tempban loop ----
+class MyClient(discord.Client):
+    async def setup_hook(self):
+        await tree.sync()
+        self.loop.create_task(tempban_loop())
 
-# ---- Run Discord ----
 async def tempban_loop():
     await client.wait_until_ready()
     while not client.is_closed():
         now = int(datetime.utcnow().timestamp())
-        to_remove = []
-        for uid, ts in TEMP_BANS.items():
-            if ts <= now:
-                to_remove.append(uid)
-        for uid in to_remove:
+        expired = [uid for uid, ts in TEMP_BANS.items() if ts <= now]
+        for uid in expired:
             TEMP_BANS.pop(uid)
             save_json(TEMP_BANS_FILE, TEMP_BANS)
             user = client.get_user(int(uid))
-            if user: await log_mod(f"Tempban expired for {user}.")
+            if user:
+                await log_mod(f"Tempban expired for {user}.")
         await asyncio.sleep(60)
 
-client.loop.create_task(tempban_loop())
+# ---- Run client ----
+client = MyClient(intents=intents)
 client.run(TOKEN)
