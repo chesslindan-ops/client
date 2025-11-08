@@ -141,11 +141,12 @@ async def links_command(interaction: discord.Interaction):
         await interaction.followup.send("No roblox.com/share links found 😢")
         return
 
+    # build numbered markdown links and separate with one blank line
     pretty = []
-for i, l in enumerate(links[:10], start=1):
-    pretty.append(f"[Click Here ({i})]({l})")
+    for i, l in enumerate(links[:10], start=1):
+        pretty.append(f"[Click Here ({i})]({l})")
+    message = "\n\n".join(pretty)
 
-message = "\n\n".join(pretty)
     if MAINTENANCE:
         embed = discord.Embed(
             title="⚠️ Maintenance Mode 🟠 | Latest SAB Scammer Links 🔗",
