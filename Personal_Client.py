@@ -155,7 +155,7 @@ async def links_command(interaction: discord.Interaction):
         return
 
     # only send first link, as clickable markdown
-    link_message = f"[Scammer Private Server Link]({links[0]})"
+    link_message = f"[Scammer Private Server Link (Click here!)]({links[0]})"
 
     if MAINTENANCE:
         embed = discord.Embed(
@@ -170,6 +170,7 @@ async def links_command(interaction: discord.Interaction):
             color=0x0000ff
         )
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS | Hosted by Quesadillo's Mansion")
+    embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
     await interaction.followup.send(embed=embed)
 
 # ---- Owner-only decorator ----
