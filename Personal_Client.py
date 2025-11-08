@@ -159,7 +159,7 @@ async def links_command(interaction: discord.Interaction):
 
     if MAINTENANCE:
         embed = discord.Embed(
-            title="⚠️ Maintenance Mode 🟠 | Latest SAB Scammer Link",
+            title="⚠️ Maintenance Mode 🟠 | 🔍・𝗥𝗲𝗰𝗲𝗻𝘁 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱 𝗦𝗰𝗮𝗺𝗺𝗲𝗿 🔗",
             description=f"⚠️ The bot is currently in maintenance mode and may experience issues.\n\n{link_message}",
             color=0xFFA500
         )
@@ -178,6 +178,19 @@ def owner_only():
     def predicate(interaction: discord.Interaction):
         return interaction.user.id in OWNER_IDS
     return app_commands.check(predicate)
+@tree.command(name="maintenance", description="Toggle maintenance mode (owner-only)")
+@owner_only()
+@app_commands.describe(state="on/off")
+async def maintenance_cmd(interaction: discord.Interaction, state: str):
+    s = state.lower()
+    if s not in ["on","off"]:
+        await interaction.response.send_message("use: /maintenance on  |  /maintenance off", ephemeral=True)
+        return
+
+    newstate = (s=="on")
+    save_maintenance(newstate)
+
+    await interaction.response.send_message(f"maintenance set to **{s}**", ephemeral=True)
 
 # ---- Ban/unban users ----
 @tree.command(name="ban_user", description="Ban a user (owner-only)")
