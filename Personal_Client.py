@@ -134,7 +134,7 @@ def save_maintenance(state: bool):
     MAINTENANCE = state
 
 # ---- /links command ----
-@tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
+@tree.command(name="link", description="Get a scammer private server link! (Developed by h.aze.l)")
 async def links_command(interaction: discord.Interaction):
     if any(g["id"] == interaction.guild_id for g in BANNED_GUILDS):
         embed = discord.Embed(
