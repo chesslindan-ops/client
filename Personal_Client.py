@@ -167,9 +167,9 @@ async def links_command(interaction: discord.Interaction):
         embed = discord.Embed(
             title="Latest SAB Scammer Link 🔗",
             description=link_message,
-            color=0x00ffcc
+            color=0x0000ff
         )
-    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS | Hosted by Quesadillo's Mansion")
     await interaction.followup.send(embed=embed)
 
 # ---- Owner-only decorator ----
