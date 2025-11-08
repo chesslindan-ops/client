@@ -169,6 +169,20 @@ def owner_only():
         return interaction.user.id == OWNER_ID
     return app_commands.check(predicate)
 
+@tree.command(name="maintenance", description="Toggle maintenance mode (owner-only)")
+@owner_only()
+@app_commands.describe(state="on/off")
+async def maintenance_cmd(interaction: discord.Interaction, state: str):
+    s = state.lower()
+    if s not in ["on","off"]:
+        await interaction.response.send_message("use: /maintenance on  |  /maintenance off", ephemeral=True)
+        return
+
+    newstate = (s=="on")
+    save_maintenance(newstate)
+
+    await interaction.response.send_message(f"maintenance set to **{s}**", ephemeral=True)
+
 # ---- Ban/unban users ----
 @tree.command(name="ban_user", description="Ban a user (owner-only)")
 @owner_only()
