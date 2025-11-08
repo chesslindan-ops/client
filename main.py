@@ -141,7 +141,11 @@ async def links_command(interaction: discord.Interaction):
         await interaction.followup.send("No roblox.com/share links found 😢")
         return
 
-    message = "\n".join(links[:10])
+    pretty = []
+for i, l in enumerate(links[:10], start=1):
+    pretty.append(f"[Click Here ({i})]({l})")
+
+message = "\n\n".join(pretty)
     if MAINTENANCE:
         embed = discord.Embed(
             title="⚠️ Maintenance Mode 🟠 | Latest SAB Scammer Links 🔗",
@@ -150,7 +154,7 @@ async def links_command(interaction: discord.Interaction):
         )
     else:
         embed = discord.Embed(
-            title="🔍・𝗥𝗲𝗰𝗲𝗻𝘁 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱 𝗦𝗰𝗮𝗺𝗺𝗲𝗿 **Link**",
+            title="⚠️ Latest SAB Scammer PS Links 🔗",
             description=message,
             color=0x00ffcc
         )
