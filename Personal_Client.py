@@ -167,7 +167,7 @@ async def links_command(interaction: discord.Interaction):
         embed = discord.Embed(
             title="🔍・𝗥𝗲𝗰𝗲𝗻𝘁 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱 𝗦𝗰𝗮𝗺𝗺𝗲𝗿 🔗",
             description=link_message,
-            color=0x0000ff
+            color=0xff0000
         )
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS | Hosted by Quesadillo's Mansion")
     embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
