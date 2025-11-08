@@ -165,7 +165,7 @@ async def links_command(interaction: discord.Interaction):
         )
     else:
         embed = discord.Embed(
-            title="Latest SAB Scammer Link 🔗",
+            title="🔍・𝗥𝗲𝗰𝗲𝗻𝘁 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱 𝗦𝗰𝗮𝗺𝗺𝗲𝗿 🔗",
             description=link_message,
             color=0x0000ff
         )
