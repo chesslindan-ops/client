@@ -154,7 +154,7 @@ async def links_command(interaction: discord.Interaction):
             description=message,
             color=0x00ffcc
         )
-    embed.set_image(url="https://tr.rbxcdn.com/180DAY-c0c1c4d4ecac6766c2c7f25f3e5dde66/768/432/Image/Webp/noFilter")
+    embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
