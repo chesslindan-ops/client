@@ -150,10 +150,11 @@ async def links_command(interaction: discord.Interaction):
         )
     else:
         embed = discord.Embed(
-            title="Latest SAB Scammer Links 🔗⚠️",
+            title="Latest SAB Scammer Link 🔗⚠️",
             description=message,
             color=0x00ffcc
         )
+    embed.set_image(url="https://tr.rbxcdn.com/180DAY-c0c1c
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
 
