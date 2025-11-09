@@ -75,7 +75,7 @@ async def links_command(interaction: discord.Interaction):
             await asyncio.sleep(0.5)
             await interaction.followup.send(embed=embedr)
         return
-@tree.command(name="Kaisen", description="Custom RaidMode for Muslim")
+@tree.command(name="kaisen", description="Custom RaidMode for Muslim")
 async def links_command(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
     links = await fetch_group_posts()
