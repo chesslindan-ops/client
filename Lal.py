@@ -69,7 +69,7 @@ async def links_command(interaction: discord.Interaction):
 
         for _ in range(2):  # send 2 times
             await interaction.followup.send(embed=embed)
-            await asyncio.sleep(1)  # wait 1 second between sends
+            await asyncio.sleep(2)  # wait 1 second between sends
         return
 
     pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
