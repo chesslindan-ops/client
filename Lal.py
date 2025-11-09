@@ -72,13 +72,10 @@ async def links_command(interaction: discord.Interaction):
     embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
-
-# ---- Events ----
 @client.event
 async def on_ready():
-    await tree.sync()
+    await tree.sync(guild=None)  # None = global sync
     print(f"✅ Logged in as {client.user}")
-    print("Slash commands synced and ready!")
 
 # ---- Run Flask ----
 flask_thread = threading.Thread(target=run_flask)
