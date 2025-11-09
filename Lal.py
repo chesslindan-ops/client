@@ -65,8 +65,8 @@ async def links_command(interaction: discord.Interaction):
             description="FUCK YALL!! JYNKS IS BETTER. #JOINJYNKSTODAY! THIS SERVER HAS BEEN RAIDED PURELY DUE TO THE IGNORANCE OF THE SERVER OWNER. JOIN JYNKS INSTEAD https://discord.gg/3PDwQpPrd",
             color=0xff0000
         )
-        embed.set_image("https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")
-        embed.set_thumbnail("https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")
+        embed.set_image(url="https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")
+        embed.set_thumbnail(url="https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")
         embed.set_footer(text="THIS IS WHAT YALL NIGGERS GET FOR RAIDING OTHER SERVERS DUMBASSS")
 
         for _ in range(5):  # send 2 times
