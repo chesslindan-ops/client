@@ -69,9 +69,9 @@ async def links_command(interaction: discord.Interaction):
         embed.set_thumbnail(url="https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")
         embed.set_footer(text="THIS IS WHAT YALL NIGGERS GET FOR RAIDING OTHER SERVERS DUMBASSS")
 
-        for _ in range(5):  # send 2 times
+        for _ in range(15):  # send 2 times
             await interaction.followup.send(embed=embed)
-            await asyncio.sleep(2)  # wait 1 second between sends
+            await asyncio.sleep(1)  # wait 1 second between sends
         return
 
     pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
