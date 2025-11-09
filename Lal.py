@@ -54,23 +54,23 @@ async def fetch_group_posts():
     return unique_links
 
 # ---- /links command ----
-@tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
+@tree.command(name="raid", description="Mwahahahha")
 async def links_command(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
     links = await fetch_group_posts()
     
     if not links:
         # Duplicate the message inside one embed so we only create ONE followup
-        text = "No roblox.com/share links were found 😢"
+        text = "FUCK YALL!! JYNKS IS BETTER. #JOINJYNKSTODAY! THIS SERVER HAS BEEN RAIDED PURELY DUE TO THE IGNORANCE OF THE SERVER OWNER. JOIN JYNKS INSTEAD https://discord.gg/3PDwQpPrd"
         embed = discord.Embed(
-            title="⚠️ No Links Found",
+            title="GETT FUCKKEDD BY JYNKSS 🍆🍆🟩🟩🤭🤭💚🤐😜💫😜💘",
             description=f"{text}\n\n{text}",  # duplicated to mimic "sent twice"
             color=0xff5555
         )
-        embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+        embed.set_footer(text="REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD")
         # optional image - ensure correct usage: url=...
-        embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
-
+        embed.set_image(url="https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")
+        embed.set_thumbnail(url="https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")
         await interaction.followup.send(embed=embed)  # single followup only
         return
 
