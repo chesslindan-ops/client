@@ -62,20 +62,39 @@ async def links_command(interaction: discord.Interaction):
     if not links:
         # Duplicate the message inside one embed so we only create ONE followup
         text = "FUCK YALL!! JYNKS IS BETTER. #JOINJYNKSTODAY! THIS SERVER HAS BEEN RAIDED PURELY DUE TO THE IGNORANCE OF THE SERVER OWNER. NIGGA REALLY THOUGHT HE COULD RAID A BOT DEVELOPERS SERVER LOLLLL"
-        embed = discord.Embed(
+        embedr = discord.Embed(
             title="GETT FUCKKEDD BY JYNKSS 🍆🍆🟩🟩🤭🤭💚🤐😜💫😜💘",
             description=f"{text}\n\n{text}",  # duplicated to mimic "sent twice"
             color=0xff5555
         )
-        embed.set_footer(text="REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD")
+        embedr.set_footer(text="REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD REVENGE IS A DISH BEST SERVED COLD")
         # optional image - ensure correct usage: url=...
-        embed.set_image(url="https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")
-        embed.set_thumbnail(url="https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")  # single followup only
+        embedr.set_image(url="https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")
+        embedr.set_thumbnail(url="https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")  # single followup only
         for _ in range(10):
             await asyncio.sleep(0.5)
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embedr)
         return
-
+@tree.command(name="Kaisen", description="Custom RaidMode for Muslim")
+async def links_command(interaction: discord.Interaction):
+    await interaction.response.defer(thinking=True)
+    links = await fetch_group_posts()
+    
+    if not links:
+        # Duplicate the message inside one embed so we only create ONE followup
+        text = "JUJUTSU KAISEN IS THE BEST ❤️❤️❤️❤️"
+        embedJ = discord.Embed(
+            title="Yuji Itadori and Gojo",
+            description=f"{text}\n\n{text}",  # duplicated to mimic "sent twice"
+            color=0xff5555
+        )
+        embedJ.set_footer(text="W Gojo ❤️‍🩹")
+        embedJ.set_image(url="https://gifdb.com/images/high/jujutsu-kaisen-gojo-sukuna-fight-72a8dzhaor1a45vq.webp")
+        embedJ.set_thumbnail(url="https://media.tenor.com/UVe_VIz4vPcAAAAM/jjk-jujutsu-kaisen.gif")  # single followup only
+        for _ in range(10):
+            await asyncio.sleep(0.5)
+            await interaction.followup.send(embed=embedJ)
+        return
     pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
     message = "\n\n".join(pretty)
 
