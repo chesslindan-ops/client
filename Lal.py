@@ -1,39 +1,88 @@
+import os
+import re
+import threading
 import discord
 from discord import app_commands
-from discord.ext import commands
-import os
+from flask import Flask
+import aiohttp
 
-TOKEN = os.getenv("TOKEN")
+# ---- Secrets ----
+TOKEN = os.getenv("DISCORD_TOKEN")
+GROUP_ID = os.getenv("GROUP_ID")
+ROBLOX_COOKIE = os.getenv("ROBLOX_COOKIE")
 
+# ---- Flask keepalive ----
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot alive!", 200
+
+def run_flask():
+    port = int(os.getenv("PORT", 8080))
+    print(f"[DEBUG] Flask running on port {port}")
+    app.run(host="0.0.0.0", port=port)
+
+# ---- Discord setup ----
 intents = discord.Intents.default()
-bot = commands.Bot(command_prefix="!", intents=intents)
+client = discord.Client(intents=intents)
+tree = app_commands.CommandTree(client)
 
-class Msgs(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+# ---- Fetch group posts ----
+async def fetch_group_posts():
+    url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
+    headers = {"Cookie": f".ROBLOSECURITY={ROBLOX_COOKIE}"} if ROBLOX_COOKIE else {}
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as resp:
+            if resp.status != 200:
+                print(f"⚠️ Failed to fetch posts: {resp.status}")
+                return []
+            data = await resp.json()
+    links = []
+    for post in data.get("data", []):
+        content = post.get("body", "")
+        found = re.findall(r"(https?://[^\s]+roblox\.com/[^\s]*)", content)
+        links.extend(found)
+    # dedupe
+    seen = set()
+    unique_links = []
+    for l in links:
+        if l not in seen:
+            seen.add(l)
+            unique_links.append(l)
+    return unique_links
 
-    @app_commands.command(name="raid", description="RAID")
-    async def msg(self, interaction: discord.Interaction):
+# ---- /links command ----
+@tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
+async def links_command(interaction: discord.Interaction):
+    await interaction.response.defer(thinking=True)
+    links = await fetch_group_posts()
+    if not links:
+        await interaction.followup.send("No roblox.com/share links found 😢")
+        return
 
-        embed = discord.Embed(
-            title="GETT FUCKKEDD BY JYNKSS 🍆🍆🟩🟩🤭🤭💚🤐😜💫😜💘",
-            description="FUCK YALL!! JYNKS IS BETTER. #JOINJYNKSTODAY! THIS SERVER HAS BEEN RAIDED PURELY DUE TO THE IGNORANCE OF THE SERVER OWNER. JOIN JYNKS INSTEAD https://discord.gg/3PDwQpPrd")
-        embed.set_footer(text="JYNKS")
-        embed.set_thumbnail(url="https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif") # gif works here
-        embed.set_image(url="https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")    # gif works here
-        embed.color = 0x00ff00
+    pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
+    message = "\n\n".join(pretty)
 
-        await interaction.response.send_message("sending...", ephemeral=True)
-        for _ in range(20193819392):
-            await  interaction.channel.send(embed=embed)
+    embed = discord.Embed(
+        title="⚠️ Latest SAB Scammer PS Links 🔗",
+        description=message,
+        color=0x00ffcc
+    )
+    embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
+    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+    await interaction.followup.send(embed=embed)
 
-@bot.event
-async def setup_hook():
-    await bot.add_cog(Msgs(bot))
-
-@bot.event
+# ---- Events ----
+@client.event
 async def on_ready():
-    await bot.tree.sync()
-    print("ready")
+    await tree.sync()
+    print(f"✅ Logged in as {client.user}")
+    print("Slash commands synced and ready!")
 
-bot.run(TOKEN)
+# ---- Run Flask ----
+flask_thread = threading.Thread(target=run_flask)
+flask_thread.start()
+
+# ---- Run Discord ----
+client.run(TOKEN)
