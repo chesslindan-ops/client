@@ -59,18 +59,18 @@ async def links_command(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
     links = await fetch_group_posts()
     
-if not links:
-    embed = discord.Embed(
-        title="⚠️ No Links Found",
-        description="No roblox.com/share links were found 😢",
-        color=0xff5555
-    )
-    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+    if not links:
+        embed = discord.Embed(
+            title="⚠️ No Links Found",
+            description="No roblox.com/share links were found 😢",
+            color=0xff5555
+        )
+        embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
 
-    for _ in range(2):  # send 2 times
-        await interaction.followup.send(embed=embed)
-        await asyncio.sleep(1)  # wait 1 second between sends
-    return
+        for _ in range(2):  # send 2 times
+            await interaction.followup.send(embed=embed)
+            await asyncio.sleep(1)  # wait 1 second between sends
+        return
 
     pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
     message = "\n\n".join(pretty)
@@ -83,6 +83,8 @@ if not links:
     embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
     await interaction.followup.send(embed=embed)
+
+# ---- On ready ----
 @client.event
 async def on_ready():
     await tree.sync(guild=None)  # None = global sync
