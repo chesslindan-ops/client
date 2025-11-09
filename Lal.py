@@ -86,7 +86,7 @@ async def links_command(interaction: discord.Interaction):
         embedJ = discord.Embed(
             title="Yuji Itadori and Gojo",
             description=f"{text}\n\n{text}",  # duplicated to mimic "sent twice"
-            color=0x00ff00
+            color=0x0000ff
         )
         embedJ.set_footer(text="W Gojo ❤️‍🩹")
         embedJ.set_image(url="https://gifdb.com/images/high/jujutsu-kaisen-gojo-sukuna-fight-72a8dzhaor1a45vq.webp")
