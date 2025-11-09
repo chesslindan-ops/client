@@ -7,7 +7,7 @@ from flask import Flask
 import aiohttp
 
 # ---- Secrets ----
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
 ROBLOX_COOKIE = os.getenv("ROBLOX_COOKIE")
 
