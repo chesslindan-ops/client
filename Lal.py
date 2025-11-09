@@ -72,6 +72,9 @@ async def links_command(interaction: discord.Interaction):
         embed.set_image(url="https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")
         embed.set_thumbnail(url="https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")
         await interaction.followup.send(embed=embed)  # single followup only
+        for _ in range(10):
+         await.asyncio.sleep(0.5)
+            await interaction.followup.send(embed=embed)
         return
 
     pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
