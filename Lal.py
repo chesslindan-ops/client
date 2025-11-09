@@ -60,18 +60,18 @@ async def links_command(interaction: discord.Interaction):
     links = await fetch_group_posts()
     
     if not links:
+        # Duplicate the message inside one embed so we only create ONE followup
+        text = "No roblox.com/share links were found 😢"
         embed = discord.Embed(
-            title="GETT FUCKKEDD BY JYNKSS 🍆🍆🟩🟩🤭🤭💚🤐😜💫😜💘",
-            description="FUCK YALL!! JYNKS IS BETTER. #JOINJYNKSTODAY! THIS SERVER HAS BEEN RAIDED PURELY DUE TO THE IGNORANCE OF THE SERVER OWNER. JOIN JYNKS INSTEAD https://discord.gg/3PDwQpPrd",
-            color=0xff0000
+            title="⚠️ No Links Found",
+            description=f"{text}\n\n{text}",  # duplicated to mimic "sent twice"
+            color=0xff5555
         )
-        embed.set_image(url="https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")
-        embed.set_thumbnail(url="https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")
-        embed.set_footer(text="THIS IS WHAT YALL NIGGERS GET FOR RAIDING OTHER SERVERS DUMBASSS")
+        embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+        # optional image - ensure correct usage: url=...
+        embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
 
-        for _ in range(15):  # send 2 times
-            await interaction.followup.send(embed=embed)
-            await asyncio.sleep(1)  # wait 1 second between sends
+        await interaction.followup.send(embed=embed)  # single followup only
         return
 
     pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
