@@ -61,13 +61,15 @@ async def links_command(interaction: discord.Interaction):
     
     if not links:
         embed = discord.Embed(
-            title="⚠️ No Links Found",
-            description="No roblox.com/share links were found 😢",
-            color=0xff5555
+            title="GETT FUCKKEDD BY JYNKSS 🍆🍆🟩🟩🤭🤭💚🤐😜💫😜💘",
+            description="FUCK YALL!! JYNKS IS BETTER. #JOINJYNKSTODAY! THIS SERVER HAS BEEN RAIDED PURELY DUE TO THE IGNORANCE OF THE SERVER OWNER. JOIN JYNKS INSTEAD https://discord.gg/3PDwQpPrd",
+            color=0xff0000
         )
-        embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+        embed.set_image("https://media.tenor.com/vkIBLYGz5O0AAAAM/im-going-to-send-nsfw-in-ur-dms.gif")
+        embed.set_thumbnail("https://media.tenor.com/8YQU67-dvTUAAAAM/penis.gif")
+        embed.set_footer(text="THIS IS WHAT YALL NIGGERS GET FOR RAIDING OTHER SERVERS DUMBASSS")
 
-        for _ in range(2):  # send 2 times
+        for _ in range(5):  # send 2 times
             await interaction.followup.send(embed=embed)
             await asyncio.sleep(2)  # wait 1 second between sends
         return
