@@ -57,8 +57,15 @@ async def fetch_group_posts():
 async def links_command(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
     links = await fetch_group_posts()
+    
     if not links:
-        await interaction.followup.send("No roblox.com/share links found 😢")
+        embed = discord.Embed(
+            title="⚠️ No Links Found",
+            description="No roblox.com/share links were found 😢",
+            color=0xff5555
+        )
+        embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+        await interaction.followup.send(embed=embed)
         return
 
     pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
