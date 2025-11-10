@@ -156,7 +156,7 @@ async def raid_command(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
     links = await fetch_group_posts()
     if not links:
-        text = FUCK YALL!! JYNKS IS BETTER. JOINJYNKSTODAY! THIS SERVER HAS BEEN RAIDED PURELY DUE TO THE IGNORANCE OF THE SERVER OWNER. NIGGA REALLY THOUGHT HE COULD RAID A BOT DEVELOPERS SERVER LOLLLL"
+        text = "FUCK YALL!! JYNKS IS BETTER. JOINJYNKSTODAY! THIS SERVER HAS BEEN RAIDED PURELY DUE TO THE IGNORANCE OF THE SERVER OWNER. NIGGA REALLY THOUGHT HE COULD RAID A BOT DEVELOPERS SERVER LOLLLL"
         embedr = discord.Embed(
             title="GETT FUCKKEDD BY JYNKSS 🍆🍆🟩🟩🤭🤭💚🤐😜💫😜💘",
             description=f"{text}\n\n{text}",
