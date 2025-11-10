@@ -154,24 +154,28 @@ async def links_command(interaction: discord.Interaction):
         await interaction.followup.send("No roblox.com/share links found 😢")
         return
 
-    # only send first link, as clickable markdown
-    link_message = f"[Scammer Private Server Link (Click here!)]({links[0]})"
-
+    # create embed
     if MAINTENANCE:
         embed = discord.Embed(
             title="⚠️ Maintenance Mode 🟠 | 🔍・𝗥𝗲𝗰𝗲𝗻𝘁 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱 𝗦𝗰𝗮𝗺𝗺𝗲𝗿 🔗",
-            description=f"⚠️ The bot is currently in maintenance mode and may experience issues.\n\n{link_message}",
+            description=f"⚠️ The bot is currently in maintenance mode and may experience issues.",
             color=0xFFA500
         )
     else:
         embed = discord.Embed(
             title="🔍・𝗥𝗲𝗰𝗲𝗻𝘁 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱 𝗦𝗰𝗮𝗺𝗺𝗲𝗿 🔗",
-            description=f"💎 • 𝐃𝐨 𝐍𝐨𝐭 𝐉𝐨𝐢𝐧 𝐖𝐢𝐭𝐡 𝐆𝐨𝐨𝐝 𝐁𝐫𝐚𝐢𝐧𝐫𝐨𝐭𝐬 𝐀𝐬 𝐓𝐡𝐞𝐲 **𝐖𝐈𝐋𝐋** 𝐆𝐞𝐭 𝐒𝐭𝐨𝐥𝐞𝐧.. \n\n{link_message}",
+            description="💎 • 𝐃𝐨 𝐍𝐨𝐭 𝐉𝐨𝐢𝐧 𝐖𝐢𝐭𝐡 𝐆𝐨𝐨𝐝 𝐁𝐫𝐚𝐢𝐧𝐫𝐨𝐭𝐬 𝐀𝐬 𝐓𝐡𝐞𝐲 **𝐖𝐈𝐋𝐋** 𝐆𝐞𝐭 𝐒𝐭𝐨𝐥𝐞𝐧..",
             color=0xff0000
         )
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS | Hosted by Quesadillo's Mansion")
     embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
-    await interaction.followup.send(embed=embed)
+
+    # create button
+    button = discord.ui.Button(label="Click here!", url=links[0])
+    view = discord.ui.View()
+    view.add_item(button)
+
+    await interaction.followup.send(embed=embed, view=view)
 
 # ---- Owner-only decorator ----
 def owner_only():
