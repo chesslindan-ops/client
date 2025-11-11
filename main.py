@@ -187,19 +187,22 @@ async def maintenance_cmd(interaction: discord.Interaction, state: str):
 # ---- Ban/unban users ----
 @tree.command(name="ban_user", description="Ban a user (owner-only)")
 @owner_only()
-@app_commands.describe(user_id="User ID to ban")
-async def ban_user(interaction: discord.Interaction, user_id: str):
+@app_commands.describe(user_id="User ID to ban", reason="Reason for ban")
+async def ban_user(interaction: discord.Interaction, user_id: str, reason: str):
     try:
         uid = int(user_id)
     except:
         await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
         return
-    if uid in BANNED_USERS:
+
+    # Normalize data: BANNED_USERS may be a list of ints or dicts
+    if any((u if isinstance(u, int) else u.get("id")) == uid for u in BANNED_USERS):
         await interaction.response.send_message("⚠️ User already banned.", ephemeral=True)
         return
-    BANNED_USERS.append(uid)
+
+    BANNED_USERS.append({"id": uid, "reason": reason, "timestamp": time.time()})
     save_json(BANNED_USERS_FILE, BANNED_USERS)
-    await interaction.response.send_message(f"✅ User `{uid}` banned.", ephemeral=True)
+    await interaction.response.send_message(f"✅ User `{uid}` banned for: {reason}", ephemeral=True)
 
 @tree.command(name="unban_user", description="Unban a user (owner-only)")
 @owner_only()
@@ -212,10 +215,12 @@ async def unban_user(interaction: discord.Interaction, user_id: str):
         return
 
     removed = False
-    if uid in BANNED_USERS:
-        BANNED_USERS.remove(uid)
-        save_json(BANNED_USERS_FILE, BANNED_USERS)
-        removed = True
+    # remove from dict-style or int-style entries
+    for entry in BANNED_USERS[:]:
+        if (entry if isinstance(entry, int) else entry.get("id")) == uid:
+            BANNED_USERS.remove(entry)
+            removed = True
+    save_json(BANNED_USERS_FILE, BANNED_USERS)
 
     for entry in TEMP_BANS[:]:
         if entry["id"] == uid:
@@ -231,54 +236,69 @@ async def unban_user(interaction: discord.Interaction, user_id: str):
 # ---- Tempban ----
 @tree.command(name="tempban", description="Temporarily ban a user (owner-only)")
 @owner_only()
-@app_commands.describe(user_id="User ID to tempban", duration_minutes="Duration in minutes")
-async def tempban(interaction: discord.Interaction, user_id: str, duration_minutes: int):
+@app_commands.describe(user_id="User ID to tempban", duration_minutes="Duration in minutes", reason="Reason for tempban")
+async def tempban(interaction: discord.Interaction, user_id: str, duration_minutes: int, reason: str):
     try:
         uid = int(user_id)
     except:
         await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
         return
-    if uid in BANNED_USERS or is_tempbanned(uid):
+
+    if any((u if isinstance(u, int) else u.get("id")) == uid for u in BANNED_USERS) or is_tempbanned(uid):
         await interaction.response.send_message("⚠️ User already banned.", ephemeral=True)
         return
+
     expires_at = time.time() + duration_minutes * 60
-    TEMP_BANS.append({"id": uid, "expires": expires_at})
+    TEMP_BANS.append({"id": uid, "expires": expires_at, "reason": reason})
     save_tempbans()
-    await interaction.response.send_message(f"✅ User `{uid}` tempbanned for {duration_minutes} minutes.", ephemeral=True)
+    await interaction.response.send_message(f"✅ User `{uid}` tempbanned for {duration_minutes} minutes.\nReason: {reason}", ephemeral=True)
 
 # ---- Ban/unban guilds ----
 @tree.command(name="ban_guild", description="Ban a guild (owner-only)")
 @owner_only()
-@app_commands.describe(guild_id="Guild ID to ban")
-async def ban_guild(interaction: discord.Interaction, guild_id: str):
+@app_commands.describe(guild_id="Guild ID to ban", reason="Reason for guild ban")
+async def ban_guild(interaction: discord.Interaction, guild_id: str, reason: str):
     gid = to_int_gid(guild_id)
     if not gid:
         await interaction.response.send_message("❌ Invalid guild ID.", ephemeral=True)
         return
-    if gid in BANNED_GUILDS:
+
+    if any((g if isinstance(g, int) else g.get("id")) == gid for g in BANNED_GUILDS):
         await interaction.response.send_message("⚠️ Guild already banned.", ephemeral=True)
         return
-    BANNED_GUILDS.append(gid)
+
+    guild_obj = client.get_guild(gid)
+    name = guild_obj.name if guild_obj else "Unknown"
+    BANNED_GUILDS.append({"id": gid, "reason": reason, "name": name, "timestamp": time.time()})
     save_json(BANNED_FILE, BANNED_GUILDS)
-    await interaction.response.send_message(f"✅ Guild `{gid}` banned.", ephemeral=True)
+    await interaction.response.send_message(f"✅ Guild `{name}` banned for: {reason}", ephemeral=True)
 
 @tree.command(name="unban_guild", description="Unban a guild (owner-only)")
 @owner_only()
 @app_commands.describe(guild_id="Guild ID to unban")
 async def unban_guild(interaction: discord.Interaction, guild_id: str):
     gid = to_int_gid(guild_id)
-    if not gid or gid not in BANNED_GUILDS:
-        await interaction.response.send_message("⚠️ Guild not in banned list.", ephemeral=True)
+    if not gid:
+        await interaction.response.send_message("❌ Invalid guild ID.", ephemeral=True)
         return
-    BANNED_GUILDS.remove(gid)
+
+    removed = False
+    for entry in BANNED_GUILDS[:]:
+        if (entry if isinstance(entry, int) else entry.get("id")) == gid:
+            BANNED_GUILDS.remove(entry)
+            removed = True
     save_json(BANNED_FILE, BANNED_GUILDS)
-    await interaction.response.send_message(f"✅ Guild `{gid}` unbanned.", ephemeral=True)
+
+    if removed:
+        await interaction.response.send_message(f"✅ Guild `{gid}` unbanned.", ephemeral=True)
+    else:
+        await interaction.response.send_message("⚠️ Guild not in banned list.", ephemeral=True)
 
 # ---- Ban by invite ----
 @tree.command(name="ban_invite", description="Ban a guild by invite (owner-only)")
 @owner_only()
-@app_commands.describe(invite="Invite code or URL")
-async def ban_invite(interaction: discord.Interaction, invite: str):
+@app_commands.describe(invite="Invite code or URL", reason="Reason for ban")
+async def ban_invite(interaction: discord.Interaction, invite: str, reason: str):
     m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
     if not m:
         await interaction.response.send_message("❌ Could not parse invite.", ephemeral=True)
@@ -291,28 +311,37 @@ async def ban_invite(interaction: discord.Interaction, invite: str):
                 await interaction.response.send_message(f"❌ Failed to resolve invite (HTTP {resp.status}).", ephemeral=True)
                 return
             data = await resp.json()
+
     guild = data.get("guild")
     if not guild:
         await interaction.response.send_message("❌ Invite has no guild info.", ephemeral=True)
         return
+
     gid = int(guild["id"])
     name = guild.get("name", "Unknown")
-    if gid in BANNED_GUILDS:
+    if any((g if isinstance(g, int) else g.get("id")) == gid for g in BANNED_GUILDS):
         await interaction.response.send_message(f"⚠️ Guild **{name}** already banned.", ephemeral=True)
         return
-    BANNED_GUILDS.append(gid)
-    save_json(BANNED_FILE, BANNED_GUILDS)
-    await interaction.response.send_message(f"✅ Guild **{name}** banned.", ephemeral=True)
 
-# ---- List banned / removed ----
+    BANNED_GUILDS.append({"id": gid, "name": name, "reason": reason, "timestamp": time.time()})
+    save_json(BANNED_FILE, BANNED_GUILDS)
+    await interaction.response.send_message(f"✅ Guild **{name}** banned for: {reason}", ephemeral=True)
+
+# ---- List banned ----
 @tree.command(name="list_banned", description="List all banned guilds (owner-only)")
 @owner_only()
 async def list_banned(interaction: discord.Interaction):
     lines = []
-    for i, gid in enumerate(BANNED_GUILDS, start=1):
-        gobj = client.get_guild(gid)
-        name = gobj.name if gobj else "Not in guild"
-        lines.append(f"{i}. {name} | {gid}")
+    for i, entry in enumerate(BANNED_GUILDS, start=1):
+        if isinstance(entry, int):
+            gid, reason = entry, "No reason recorded"
+            name = client.get_guild(gid).name if client.get_guild(gid) else "Unknown"
+        else:
+            gid = entry.get("id")
+            name = entry.get("name", "Unknown")
+            reason = entry.get("reason", "No reason recorded")
+        lines.append(f"{i}. {name} | {gid} | Reason: {reason}")
+
     text = "\n".join(lines) or "No banned guilds."
     if len(text) <= 1800:
         await interaction.response.send_message(f"**Banned guilds:**\n{text}", ephemeral=True)
@@ -320,18 +349,6 @@ async def list_banned(interaction: discord.Interaction):
         bio = io.StringIO(text)
         bio.seek(0)
         await interaction.response.send_message(file=discord.File(bio, "banned_guilds.txt"), ephemeral=True)
-
-@tree.command(name="list_removed", description="List removed guilds (owner-only)")
-@owner_only()
-async def list_removed(interaction: discord.Interaction):
-    lines = [f"{i+1}. {e.get('name','Unknown')} | {e.get('id','Unknown')}" for i, e in enumerate(REMOVED_GUILDS)]
-    text = "\n".join(lines) or "No removed guilds."
-    if len(text) <= 1800:
-        await interaction.response.send_message(f"**Removed guilds:**\n{text}", ephemeral=True)
-    else:
-        bio = io.StringIO(text)
-        bio.seek(0)
-        await interaction.response.send_message(file=discord.File(bio, "removed_guilds.txt"), ephemeral=True)
 @tree.command(name="announce", description="Send a global announcement (owner-only)")
 @owner_only()
 @app_commands.describe(message="Message to announce globally (multi-line allowed)")
