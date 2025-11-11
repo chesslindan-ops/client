@@ -164,7 +164,7 @@ async def links_command(interaction: discord.Interaction):
     else:
         embed = discord.Embed(
             title="🔍・𝗥𝗲𝗰𝗲𝗻𝘁 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱 𝗦𝗰𝗮𝗺𝗺𝗲𝗿 🔗",
-            description="💎 • 𝐃𝐨 𝐍𝐨𝐭 𝐉𝐨𝐢𝐧 𝐖𝐢𝐭𝐡 𝐆𝐨𝐨𝐝 𝐁𝐫𝐚𝐢𝐧𝐫𝐨𝐭𝐬 𝐀𝐬 𝐓𝐡𝐞𝐲 **𝐖𝐈𝐋𝐋** 𝐆𝐞𝐭 𝐒𝐭𝐨𝐥𝐞𝐧..",
+            description="💎・𝗘𝗻𝘁𝗲𝗿 𝗧𝗵𝗲𝘀𝗲 𝗣𝗿𝗶𝘃𝗮𝘁𝗲 𝗦𝗲𝗿𝘃𝗲𝗿𝘀 𝗪𝗶𝘁𝗵 𝗣𝘂𝗿𝗲 𝗖𝗮𝘂𝘁𝗶𝗼𝗻",
             color=0xff0000
         )
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS | Hosted by Quesadillo's Mansion")
