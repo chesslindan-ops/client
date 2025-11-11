@@ -331,7 +331,27 @@ async def list_removed(interaction: discord.Interaction):
         bio = io.StringIO(text)
         bio.seek(0)
         await interaction.response.send_message(file=discord.File(bio, "removed_guilds.txt"), ephemeral=True)
-
+@tree.command(name="announce", description="Send a global announcement (owner-only)")
+@owner_only()
+@app_commands.describe(message="Message to announce globally (multi-line allowed)")
+async def announce(interaction: discord.Interaction, message: str):
+    embed = discord.Embed(
+        title="Global Announcement From Developer",
+        description=message,  # multi-line works here
+        color=0x0000ff
+    )
+    sent_count = 0
+    for guild in client.guilds:
+        # try to send in the first text channel the bot can send messages in
+        for channel in guild.text_channels:
+            if channel.permissions_for(guild.me).send_messages:
+                try:
+                    await channel.send(embed=embed)
+                    sent_count += 1
+                except:
+                    pass
+                break  # only send once per guild
+    await interaction.response.send_message(f"✅ Announcement sent to {sent_count} guilds.", ephemeral=True)
 # ---- Events ----
 @client.event
 async def on_ready():
