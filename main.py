@@ -117,7 +117,7 @@ async def check_user_ban(interaction: discord.Interaction):
         ts = entry.get("timestamp")
         ts_text = f"\nBanned at: <t:{int(ts)}:F>" if ts else ""
         await interaction.response.send_message(
-            f"🚫 You are banned from using this bot.\n**Reason:** {reason}{ts_text}\nIf you believe this is a mistake, DM the developer.",
+            f"🚫 You are banned from using this bot.\n**Reason:** {reason}{ts_text}\nIf you believe this is a mistake, DM **@h.aze.l**.",
             ephemeral=True,
         )
         return True
@@ -150,7 +150,7 @@ async def check_guild_ban(interaction: discord.Interaction):
         ts_text = f"\nBanned at: <t:{int(ts)}:F>" if ts else ""
         embed = discord.Embed(
             title="Access Denied ❌",
-            description=f"This server is blacklisted from using this bot.\n**Server:** {name}\n**Reason:** {reason}{ts_text}\nContact the developer to appeal.",
+            description=f"This server is blacklisted from using this bot.\n**Server:** {name}\n**Reason:** {reason}{ts_text}\nContact**@h.aze.l** to appeal.",
             color=discord.Color.red(),
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
