@@ -491,7 +491,15 @@ async def update_tree(interaction: discord.Interaction):
         await interaction.followup.send(f"✅ Commands tree synced! Total commands: {len(synced)}", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"❌ Failed to sync commands tree: {e}", ephemeral=True)
+@client.event
+async def on_ready():
+    try:
+        synced = await tree.sync()  # Global sync
+        print(f"✅ Synced {len(synced)} command(s).")
+    except Exception as e:
+        print(f"❌ Sync failed: {e}")
 
+    print(f"Bot ready as {client.user}")
 # ---- events ----
 @client.event
 async def on_ready():
