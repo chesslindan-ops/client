@@ -158,11 +158,28 @@ async def check_guild_ban(interaction: discord.Interaction):
     return False
 
 # ---- Fetch group posts ----
+MEMORY_FILE = "seen_links.json"
+
+def load_seen_links():
+    if os.path.exists(MEMORY_FILE):
+        try:
+            with open(MEMORY_FILE, "r") as f:
+                return set(json.load(f))
+        except:
+            return set()
+    return set()
+
+def save_seen_links(seen):
+    with open(MEMORY_FILE, "w") as f:
+        json.dump(list(seen), f)
+
 async def fetch_group_posts():
     if not GROUP_ID:
         return []
+
     url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
     headers = {"Cookie": f".ROBLOSECURITY={ROBLOX_COOKIE}"} if ROBLOX_COOKIE else {}
+
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as resp:
@@ -173,19 +190,24 @@ async def fetch_group_posts():
     except Exception as e:
         print(f"[ERROR] fetch_group_posts: {e}")
         return []
-    links = []
+
+    seen_links = load_seen_links()
+    unique_links = []
+
     for post in data.get("data", []):
         content = post.get("body", "")
-        found = re.findall(r"(https?://[^\s]+roblox\.com/[^\s]*)", content)
-        links.extend(found)
-    # dedupe preserving order
-    seen = set()
-    unique = []
-    for l in links:
-        if l not in seen:
-            seen.add(l)
-            unique.append(l)
-    return unique
+        # only accept /share/ links
+        found = re.findall(r"(https?://(?:www\.)?roblox\.com/share/[^\s]+)", content)
+
+        for link in found:
+            if link not in seen_links:
+                seen_links.add(link)
+                unique_links.append(link)
+
+    if unique_links:
+        save_seen_links(seen_links)
+
+    return unique_links
 
 # ---- Maintenance flag ----
 MAINTENANCE = False
