@@ -353,43 +353,52 @@ async def announce(interaction: discord.Interaction, message: str):
                     pass
                 break  # only send once per guild
     await interaction.response.send_message(f"✅ Announcement sent to {sent_count} guilds.", ephemeral=True)
-    from discord.ui import View, Button
 
 # ---- /onelink command ----
 @tree.command(name="onelink", description="Get the first scammer private server link with a button")
 async def onelink_command(interaction: discord.Interaction):
-    if interaction.guild_id in BANNED_GUILDS:
-        embed = discord.Embed(
-            title="Access Denied ❌️",
-            description="This server is blacklisted from using this bot. Contact @h.aze.l to appeal.",
-            color=discord.Color.red()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return
+    try:
+        # guild / user ban checks
+        if interaction.guild_id in BANNED_GUILDS:
+            embed = discord.Embed(
+                title="Access Denied ❌️",
+                description="This server is blacklisted from using this bot. Contact @h.aze.l to appeal.",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
 
-    if await check_user_ban(interaction):
-        return
+        if await check_user_ban(interaction):
+            return
 
-    await interaction.response.defer(thinking=True)
-    links = await fetch_group_posts()
-    if not links:
-        await interaction.followup.send("No roblox.com/share links found 😢")
-        return
+        await interaction.response.defer(thinking=True)
 
-    first_link = links[0]
+        links = await fetch_group_posts()
+        if not links:
+            await interaction.followup.send("No roblox.com/share links found 😢", ephemeral=True)
+            return
 
-    # make a button
-    button = Button(label="Click Here 🔗", url=first_link, style=discord.ButtonStyle.link)
-    view = View()
-    view.add_item(button)
+        first_link = links[0]
 
-    embed = discord.Embed(
-        title="⚠️ Latest SAB Scammer PS Link 🔗",
-        description="Click the button below to visit the link.",
-        color=0x00ffcc
-    )
-    embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
-    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+        # create a link button
+        view = View()
+        view.add_item(Button(label="Click Here 🔗", url=first_link, style=discord.ButtonStyle.link))
+
+        # embed setup
+        title = "⚠️ Latest SAB Scammer PS Link 🔗"
+        desc = "Click the button below to visit the link."
+        color = 0xFFA500 if MAINTENANCE else 0x00ffcc
+
+        embed = discord.Embed(title=title, description=desc, color=color)
+        embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
+        embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+
+        await interaction.followup.send(embed=embed, view=view)
+
+    except Exception as e:
+        # make sure it never stays “thinking”
+        await interaction.followup.send(f"⚠️ Error while running command:\n```{e}```", ephemeral=True)
+        print(f"[ERROR] /onelink failed: {e}")
     # ---- /update_tree command ----
 @tree.command(name="update_tree", description="Sync slash commands (owner-only)")
 @owner_only()
