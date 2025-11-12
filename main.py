@@ -152,7 +152,7 @@ async def check_guild_ban(interaction: discord.Interaction):
         ts_text = f"\nBanned at: <t:{int(ts)}:F>" if ts else ""
         embed = discord.Embed(
             title="Access Denied ❌",
-            description=f"This server is blacklisted from using this bot.\n**Server:** {name}\n**Reason:** {reason}{ts_text}\n Contact**@h.aze.l** to appeal.",
+            description=f"This server is blacklisted from using this bot.\n**Server:** {name}\n**Reason:** {reason}{ts_text}\n Contact **@h.aze.l** to appeal.",
             color=discord.Color.red(),
         )
         embed.set_thumbnail(url="https://toppng.com/uploads/preview/red-cross-mark-download-png-red-cross-check-mark-11562934675swbmqcbecx.png")
