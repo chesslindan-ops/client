@@ -1,36 +1,36 @@
-# main.py - PART 1/3
 import os
 import re
 import threading
 import json
 import io
 import time
-import asyncio
 import discord
 from discord import app_commands
 from flask import Flask
 import aiohttp
-from discord.ui import View, Button
 
-# ---- Config / Secrets ----
+# ---- Secrets ----
 TOKEN = os.getenv("DISCORD_TOKEN")
 GROUP_ID = os.getenv("GROUP_ID")
 ROBLOX_COOKIE = os.getenv("ROBLOX_COOKIE")
-OWNER_ID = int(os.getenv("OWNER_ID", "1329161792936476683"))
 
-# ---- Files ----
+# ---- Owners ----
+OWNER_IDS = [
+    1329161792936476683,  # you
+    # add more owner IDs here
+]
+
+# ---- JSON files ----
 BANNED_FILE = "banned_guilds.json"
 REMOVED_LOG = "removed_guilds.json"
 BANNED_USERS_FILE = "banned_users.json"
 TEMP_BANS_FILE = "tempbans.json"
-INVITE_CACHE_FILE = "invite_cache.json"
 
-# ---- load / save helpers ----
 def load_json(path, default):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except:
         return default
 
 def save_json(path, data):
@@ -38,20 +38,16 @@ def save_json(path, data):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"[ERROR] saving {path}: {e}")
+        print(f"Error saving {path}: {e}")
 
-# ---- in-memory state ----
-BANNED_GUILDS = load_json(BANNED_FILE, [])
+# ---- Load data ----
+BANNED_GUILDS = load_json(BANNED_FILE, [])  # dicts with {"id": ..., "reason": ...}
 REMOVED_GUILDS = load_json(REMOVED_LOG, [])
-BANNED_USERS = load_json(BANNED_USERS_FILE, [])
+BANNED_USERS = load_json(BANNED_USERS_FILE, [])  # dicts with {"id": ..., "reason": ...}
 TEMP_BANS = load_json(TEMP_BANS_FILE, [])
-INVITE_CACHE = load_json(INVITE_CACHE_FILE, {})
 
 def save_tempbans():
     save_json(TEMP_BANS_FILE, TEMP_BANS)
-
-def save_invite_cache():
-    save_json(INVITE_CACHE_FILE, INVITE_CACHE)
 
 # ---- Flask keepalive ----
 app = Flask(__name__)
@@ -67,392 +63,276 @@ def run_flask():
 
 # ---- Discord setup ----
 intents = discord.Intents.default()
-intents.guilds = True
-intents.members = True  # needed if you rely on member_count or member objects
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
-MAINTENANCE = False
-# main.py - PART 2/3
-
-# ---- small helpers ----
-def to_int(val):
+# ---- Helpers ----
+def to_int_gid(val):
     try:
         return int(val)
-    except Exception:
+    except:
         return None
 
-def find_banned_user_entry(uid: int):
-    for entry in BANNED_USERS:
-        if isinstance(entry, dict) and entry.get("id") == uid:
-            return entry
-        if not isinstance(entry, dict) and entry == uid:
-            return {"id": uid, "reason": "No reason recorded", "timestamp": None}
-    return None
+async def is_owner(interaction: discord.Interaction) -> bool:
+    return interaction.user.id in OWNER_IDS
 
-def find_banned_guild_entry(gid: int):
-    for entry in BANNED_GUILDS:
-        if isinstance(entry, dict) and entry.get("id") == gid:
-            return entry
-        if not isinstance(entry, dict) and entry == gid:
-            return {"id": gid, "name": None, "reason": "No reason recorded", "timestamp": None}
-    return None
-
-def is_tempbanned_entry(uid: int):
+def is_tempbanned(user_id: int):
     now = time.time()
-    removed = False
     for entry in TEMP_BANS[:]:
-        if entry.get("expires", 0) <= now:
+        if entry["expires"] <= now:
             TEMP_BANS.remove(entry)
-            removed = True
-    if removed:
-        save_tempbans()
-    for entry in TEMP_BANS:
-        if entry.get("id") == uid:
-            return entry
-    return None
+            save_tempbans()
+        elif entry["id"] == user_id:
+            return True
+    return False
 
-# ---- global blacklist check (applies to all commands) ----
-@tree.check
-async def global_blacklist_check(interaction: discord.Interaction):
-    # user ban check
+async def check_user_ban(interaction: discord.Interaction):
     uid = interaction.user.id
-    uentry = find_banned_user_entry(uid)
-    if uentry:
-        reason = uentry.get("reason", "No reason provided")
-        ts = uentry.get("timestamp")
-        ts_text = f"\nBanned at: <t:{int(ts)}:F>" if ts else ""
-        embed = discord.Embed(
-            title="🚫 You are banned from this bot",
-            description=f"**Reason:** {reason}{ts_text}\nIf you think this is a mistake, contact the owner.",
-            color=discord.Color.red()
-        )
-        try:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        except Exception:
-            # If response already sent, attempt followup
-            try:
-                await interaction.followup.send(embed=embed, ephemeral=True)
-            except:
-                pass
-        return False
-
-    # tempban check
-    tentry = is_tempbanned_entry(uid)
-    if tentry:
-        reason = tentry.get("reason", "No reason provided")
-        expires = int(tentry.get("expires", time.time()))
-        embed = discord.Embed(
-            title="⏳ You are temporarily banned",
-            description=f"**Reason:** {reason}\nExpires: <t:{expires}:F>",
-            color=discord.Color.orange()
-        )
-        try:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        except Exception:
-            try:
-                await interaction.followup.send(embed=embed, ephemeral=True)
-            except:
-                pass
-        return False
-
-    # guild ban check
-    gid = interaction.guild_id
-    if gid:
-        gentry = find_banned_guild_entry(gid)
-        if gentry:
-            reason = gentry.get("reason", "No reason provided")
-            name = gentry.get("name") or (interaction.guild.name if interaction.guild else "Unknown")
-            ts = gentry.get("timestamp")
-            ts_text = f"\nBanned at: <t:{int(ts)}:F>" if ts else ""
-            embed = discord.Embed(
-                title="❌ This server is blacklisted",
-                description=f"**Server:** {name}\n**Reason:** {reason}{ts_text}\nContact the owner to appeal.",
-                color=discord.Color.red()
+    for entry in BANNED_USERS:
+        if entry["id"] == uid:
+            await interaction.response.send_message(
+                f"Error ⚠️: User is banned from using this program ❌\nReason: {entry.get('reason','No reason')}\nDM h.aze.l to appeal.",
+                ephemeral=True
             )
-            try:
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-            except Exception:
-                try:
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                except:
-                    pass
-            return False
+            return True
+    if is_tempbanned(uid):
+        await interaction.response.send_message(
+            "Error ⚠️: User is temporarily banned from using this program ❌ | DM h.aze.l to appeal.",
+            ephemeral=True
+        )
+        return True
+    return False
 
-    # allow command
-    return True
-
-# ---- owner_only decorator ----
-def owner_only():
-    def predicate(interaction: discord.Interaction):
-        return interaction.user.id == OWNER_ID
-    return app_commands.check(predicate)
-
-# ---- Roblox group wall fetcher ----
+# ---- Fetch group posts ----
 async def fetch_group_posts():
-    if not GROUP_ID:
-        return []
     url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
     headers = {"Cookie": f".ROBLOSECURITY={ROBLOX_COOKIE}"} if ROBLOX_COOKIE else {}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as resp:
-                if resp.status != 200:
-                    print(f"[WARN] fetch_group_posts HTTP {resp.status}")
-                    return []
-                data = await resp.json()
-    except Exception as e:
-        print(f"[ERROR] fetch_group_posts: {e}")
-        return []
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as resp:
+            if resp.status != 200:
+                print(f"⚠️ Failed to fetch posts: {resp.status}")
+                return []
+            data = await resp.json()
     links = []
     for post in data.get("data", []):
         content = post.get("body", "")
         found = re.findall(r"(https?://[^\s]+roblox\.com/[^\s]*)", content)
         links.extend(found)
-    # dedupe preserving order
+    # dedupe
     seen = set()
-    unique = []
+    unique_links = []
     for l in links:
         if l not in seen:
             seen.add(l)
-            unique.append(l)
-    return unique
+            unique_links.append(l)
+    return unique_links
 
-# ---- Invite resolver with caching and basic 429 handling ----
-async def resolve_invite_code(code: str):
-    # normalize
-    code = code.strip()
-    if code in INVITE_CACHE:
-        return INVITE_CACHE[code]
-    url = f"https://discord.com/api/v10/invites/{code}?with_counts=false"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 429:
-                    # rate-limited: try reading retry_after then raise to caller
-                    try:
-                        data = await resp.json()
-                        retry = data.get("retry_after", 5)
-                    except:
-                        retry = 5
-                    raise RuntimeError(f"RATE_LIMITED:{retry}")
-                if resp.status != 200:
-                    raise RuntimeError(f"HTTP_{resp.status}")
-                data = await resp.json()
-                INVITE_CACHE[code] = data
-                save_invite_cache()
-                return data
-    except Exception as e:
-        raise
-# main.py - PART 3/3
+# ---- Maintenance flag ----
+MAINTENANCE = False
+def save_maintenance(state: bool):
+    global MAINTENANCE
+    MAINTENANCE = state
 
 # ---- /links command ----
-@tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
+@tree.command(name="link", description="Get a scammer private server link! (Developed by h.aze.l)")
 async def links_command(interaction: discord.Interaction):
-    await interaction.response.defer(thinking=True)
-    links = await fetch_group_posts()
-    if not links:
-        await interaction.followup.send("No roblox.com/share links found 😢", ephemeral=True)
+    if any(g["id"] == interaction.guild_id for g in BANNED_GUILDS):
+        embed = discord.Embed(
+            title="Access Denied ❌️",
+            description="This server is blacklisted from using this bot. Contact @h.aze.l to appeal.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
-    pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
-    message = "\n\n".join(pretty)
-    title = "⚠️ Latest SAB Scammer PS Links 🔗"
-    if MAINTENANCE:
-        title = "⚠️ Maintenance Mode 🟠 | Latest SAB Scammer Links 🔗"
-        message = f"⚠️ The bot is currently in maintenance mode and may experience issues.\n\n{message}"
-    embed = discord.Embed(title=title, description=message, color=0x00ffcc if not MAINTENANCE else 0xFFA500)
-    embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
-    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
-    await interaction.followup.send(embed=embed)
 
-# ---- /onelink command ----
-@tree.command(name="onelink", description="Get the first scammer private server link with a button")
-async def onelink_command(interaction: discord.Interaction):
+    if await check_user_ban(interaction):
+        return
+
     await interaction.response.defer(thinking=True)
     links = await fetch_group_posts()
     if not links:
-        await interaction.followup.send("No roblox.com/share links found 😢", ephemeral=True)
+        await interaction.followup.send("No roblox.com/share links found 😢")
         return
-    first_link = links[0]
-    view = View()
-    color = 0x00ffcc if not MAINTENANCE else 0xFFA500
-    embed = discord.Embed(title="❌️ FATAL ERROR. GUILDSTATUS==2 (Suspension)", description="Service temporarily suspended by developer until a resolution is found. Apologies for all inconvenience caused.", color=color)
-    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+
+    # create embed
+    if MAINTENANCE:
+        embed = discord.Embed(
+            title="⚠️ Maintenance Mode 🟠 | 🔍・𝗥𝗲𝗰𝗲𝗻𝘁 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱 𝗦𝗰𝗮𝗺𝗺𝗲𝗿 🔗",
+            description=f"⚠️ The bot is currently in maintenance mode and may experience issues.",
+            color=0xFFA500
+        )
+    else:
+        embed = discord.Embed(
+            title="FATAL ERROR. VARIABLE GUILD_STATUS IS SET TO 2 (Suspension)",
+            description="This service has been shut down temporarily by the developer due to certain clash of interests. We are working with the server owner to fix this and hope to see the bot functioning very soon. Sorry for the inconvenience.",
+            color=0xff0000
+        )
+    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS | Hosted by Quesadillo's Mansion")
+
+    # create button
+    button = discord.ui.Button(label="Click here!", url=links[0])
+    view = discord.ui.View()
+    view.add_item(button)
+
     await interaction.followup.send(embed=embed, view=view)
 
-# ---- User ban commands ----
+# ---- Owner-only decorator ----
+def owner_only():
+    def predicate(interaction: discord.Interaction):
+        return interaction.user.id in OWNER_IDS
+    return app_commands.check(predicate)
+@tree.command(name="maintenance", description="Toggle maintenance mode (owner-only)")
+@owner_only()
+@app_commands.describe(state="on/off")
+async def maintenance_cmd(interaction: discord.Interaction, state: str):
+    s = state.lower()
+    if s not in ["on","off"]:
+        await interaction.response.send_message("use: /maintenance on  |  /maintenance off", ephemeral=True)
+        return
+
+    newstate = (s=="on")
+    save_maintenance(newstate)
+
+    await interaction.response.send_message(f"maintenance set to **{s}**", ephemeral=True)
+
+# ---- Ban/unban users ----
 @tree.command(name="ban_user", description="Ban a user (owner-only)")
 @owner_only()
 @app_commands.describe(user_id="User ID to ban", reason="Reason for ban")
-async def ban_user(interaction: discord.Interaction, user_id: str, reason: str):
-    uid = to_int(user_id)
-    if not uid:
+async def ban_user(interaction: discord.Interaction, user_id: str, reason: str = "No reason provided"):
+    try:
+        uid = int(user_id)
+    except:
         await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
         return
-    if find_banned_user_entry(uid):
-        await interaction.response.send_message("⚠️ User already banned.", ephemeral=True)
-        return
-    entry = {"id": uid, "reason": reason, "timestamp": time.time()}
-    BANNED_USERS.append(entry)
+    for entry in BANNED_USERS:
+        if entry["id"] == uid:
+            await interaction.response.send_message("⚠️ User already banned.", ephemeral=True)
+            return
+    BANNED_USERS.append({"id": uid, "reason": reason})
     save_json(BANNED_USERS_FILE, BANNED_USERS)
-    await interaction.response.send_message(f"✅ User `{uid}` banned.\n**Reason:** {reason}", ephemeral=True)
+    await interaction.response.send_message(f"✅ User `{uid}` banned for reason: {reason}", ephemeral=True)
 
 @tree.command(name="unban_user", description="Unban a user (owner-only)")
 @owner_only()
 @app_commands.describe(user_id="User ID to unban")
 async def unban_user(interaction: discord.Interaction, user_id: str):
-    uid = to_int(user_id)
-    if not uid:
+    try:
+        uid = int(user_id)
+    except:
         await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
         return
+
     removed = False
-    for e in BANNED_USERS[:]:
-        if (isinstance(e, dict) and e.get("id") == uid) or (not isinstance(e, dict) and e == uid):
-            BANNED_USERS.remove(e)
+    for entry in BANNED_USERS[:]:
+        if entry["id"] == uid:
+            BANNED_USERS.remove(entry)
             removed = True
     save_json(BANNED_USERS_FILE, BANNED_USERS)
-    # also remove tempbans
-    for t in TEMP_BANS[:]:
-        if t.get("id") == uid:
-            TEMP_BANS.remove(t)
+
+    for entry in TEMP_BANS[:]:
+        if entry["id"] == uid:
+            TEMP_BANS.remove(entry)
             removed = True
     save_tempbans()
-    await interaction.response.send_message(f"✅ User `{uid}` unbanned." if removed else "⚠️ User was not banned.", ephemeral=True)
 
+    if removed:
+        await interaction.response.send_message(f"✅ User `{uid}` has been unbanned.", ephemeral=True)
+    else:
+        await interaction.response.send_message("⚠️ User was not banned.", ephemeral=True)
+
+# ---- Tempban ----
 @tree.command(name="tempban", description="Temporarily ban a user (owner-only)")
 @owner_only()
-@app_commands.describe(user_id="User ID to tempban", duration_minutes="Duration in minutes", reason="Reason for tempban")
-async def tempban(interaction: discord.Interaction, user_id: str, duration_minutes: int, reason: str):
-    uid = to_int(user_id)
-    if not uid:
+@app_commands.describe(user_id="User ID to tempban", duration_minutes="Duration in minutes")
+async def tempban(interaction: discord.Interaction, user_id: str, duration_minutes: int):
+    try:
+        uid = int(user_id)
+    except:
         await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
         return
-    if find_banned_user_entry(uid) or is_tempbanned_entry(uid):
+    if any(entry["id"] == uid for entry in BANNED_USERS) or is_tempbanned(uid):
         await interaction.response.send_message("⚠️ User already banned.", ephemeral=True)
         return
-    expires_at = time.time() + max(1, duration_minutes) * 60
-    TEMP_BANS.append({"id": uid, "expires": expires_at, "reason": reason})
+    expires_at = time.time() + duration_minutes * 60
+    TEMP_BANS.append({"id": uid, "expires": expires_at})
     save_tempbans()
-    await interaction.response.send_message(f"✅ User `{uid}` tempbanned for {duration_minutes} minutes.\n**Reason:** {reason}", ephemeral=True)
+    await interaction.response.send_message(f"✅ User `{uid}` tempbanned for {duration_minutes} minutes.", ephemeral=True)
 
-# ---- Guild bans / invite ----
+# ---- Ban/unban guilds ----
 @tree.command(name="ban_guild", description="Ban a guild (owner-only)")
 @owner_only()
-@app_commands.describe(guild_id="Guild ID to ban", reason="Reason for guild ban")
-async def ban_guild(interaction: discord.Interaction, guild_id: str, reason: str):
-    gid = to_int(guild_id)
+@app_commands.describe(guild_id="Guild ID to ban", reason="Reason for ban")
+async def ban_guild(interaction: discord.Interaction, guild_id: str, reason: str = "No reason provided"):
+    gid = to_int_gid(guild_id)
     if not gid:
         await interaction.response.send_message("❌ Invalid guild ID.", ephemeral=True)
         return
-    if find_banned_guild_entry(gid):
+    if any(g["id"] == gid for g in BANNED_GUILDS):
         await interaction.response.send_message("⚠️ Guild already banned.", ephemeral=True)
         return
-    g = client.get_guild(gid)
-    name = g.name if g else None
-    entry = {"id": gid, "name": name, "reason": reason, "timestamp": time.time()}
-    BANNED_GUILDS.append(entry)
+    BANNED_GUILDS.append({"id": gid, "reason": reason})
     save_json(BANNED_FILE, BANNED_GUILDS)
-    await interaction.response.send_message(f"✅ Guild `{name or gid}` banned.\n**Reason:** {reason}", ephemeral=True)
+    await interaction.response.send_message(f"✅ Guild `{gid}` banned for reason: {reason}", ephemeral=True)
 
 @tree.command(name="unban_guild", description="Unban a guild (owner-only)")
 @owner_only()
 @app_commands.describe(guild_id="Guild ID to unban")
 async def unban_guild(interaction: discord.Interaction, guild_id: str):
-    gid = to_int(guild_id)
-    if not gid:
-        await interaction.response.send_message("❌ Invalid guild ID.", ephemeral=True)
+    gid = to_int_gid(guild_id)
+    if not gid or not any(g["id"] == gid for g in BANNED_GUILDS):
+        await interaction.response.send_message("⚠️ Guild not in banned list.", ephemeral=True)
         return
-    removed = False
-    for e in BANNED_GUILDS[:]:
-        if (isinstance(e, dict) and e.get("id") == gid) or (not isinstance(e, dict) and e == gid):
-            BANNED_GUILDS.remove(e)
-            removed = True
+    BANNED_GUILDS[:] = [g for g in BANNED_GUILDS if g["id"] != gid]
     save_json(BANNED_FILE, BANNED_GUILDS)
-    await interaction.response.send_message(f"✅ Guild `{gid}` unbanned." if removed else "⚠️ Guild not in banned list.", ephemeral=True)
+    await interaction.response.send_message(f"✅ Guild `{gid}` unbanned.", ephemeral=True)
 
+# ---- Ban by invite ----
 @tree.command(name="ban_invite", description="Ban a guild by invite (owner-only)")
 @owner_only()
 @app_commands.describe(invite="Invite code or URL", reason="Reason for ban")
-async def ban_invite(interaction: discord.Interaction, invite: str, reason: str):
-    m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/|https?://discord.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
+async def ban_invite(interaction: discord.Interaction, invite: str, reason: str = "No reason provided"):
+    m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
     if not m:
         await interaction.response.send_message("❌ Could not parse invite.", ephemeral=True)
         return
     code = m.group(1)
-    try:
-        data = await resolve_invite_code(code)
-    except RuntimeError as e:
-        s = str(e)
-        if s.startswith("RATE_LIMITED:"):
-            retry = float(s.split(":",1)[1])
-            await interaction.response.send_message(f"⚠️ Rate-limited by Discord. Retry after {retry:.1f}s", ephemeral=True)
-            return
-        elif s.startswith("HTTP_"):
-            await interaction.response.send_message(f"❌ Failed to resolve invite ({s}).", ephemeral=True)
-            return
-        else:
-            await interaction.response.send_message(f"❌ Error resolving invite: {e}", ephemeral=True)
-            return
+    url = f"https://discord.com/api/v10/invites/{code}?with_counts=false"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                await interaction.response.send_message(f"❌ Failed to resolve invite (HTTP {resp.status}).", ephemeral=True)
+                return
+            data = await resp.json()
     guild = data.get("guild")
     if not guild:
-        await interaction.response.send_message("❌ Invite returned no guild info.", ephemeral=True)
+        await interaction.response.send_message("❌ Invite has no guild info.", ephemeral=True)
         return
     gid = int(guild["id"])
     name = guild.get("name", "Unknown")
-    if find_banned_guild_entry(gid):
+    if any(g["id"] == gid for g in BANNED_GUILDS):
         await interaction.response.send_message(f"⚠️ Guild **{name}** already banned.", ephemeral=True)
         return
-    BANNED_GUILDS.append({"id": gid, "name": name, "reason": reason, "timestamp": time.time()})
+    BANNED_GUILDS.append({"id": gid, "reason": reason})
     save_json(BANNED_FILE, BANNED_GUILDS)
-    await interaction.response.send_message(f"✅ Guild **{name}** banned.\n**Reason:** {reason}", ephemeral=True)
+    await interaction.response.send_message(f"✅ Guild **{name}** banned for reason: {reason}", ephemeral=True)
 
-# ---- Listing commands ----
+# ---- List banned / removed ----
 @tree.command(name="list_banned", description="List all banned guilds (owner-only)")
 @owner_only()
 async def list_banned(interaction: discord.Interaction):
     lines = []
-    for i, e in enumerate(BANNED_GUILDS, start=1):
-        if isinstance(e, dict):
-            gid = e.get("id")
-            name = e.get("name") or (client.get_guild(gid).name if client.get_guild(gid) else "Unknown")
-            reason = e.get("reason", "No reason recorded")
-        else:
-            gid = e
-            name = client.get_guild(gid).name if client.get_guild(gid) else "Unknown"
-            reason = "No reason recorded"
-        lines.append(f"{i}. {name} | {gid} | Reason: {reason}")
+    for i, g in enumerate(BANNED_GUILDS, start=1):
+        gobj = client.get_guild(g["id"])
+        name = gobj.name if gobj else "Not in guild"
+        lines.append(f"{i}. {name} | {g['id']} | Reason: {g.get('reason','No reason')}")
     text = "\n".join(lines) or "No banned guilds."
     if len(text) <= 1800:
         await interaction.response.send_message(f"**Banned guilds:**\n{text}", ephemeral=True)
     else:
-        bio = io.StringIO()
-        bio.write(text)
+        bio = io.StringIO(text)
         bio.seek(0)
         await interaction.response.send_message(file=discord.File(bio, "banned_guilds.txt"), ephemeral=True)
-
-@tree.command(name="list_banned_users", description="List all banned users (owner-only)")
-@owner_only()
-async def list_banned_users(interaction: discord.Interaction):
-    lines = []
-    for i, e in enumerate(BANNED_USERS, start=1):
-        if isinstance(e, dict):
-            uid = e.get("id")
-            reason = e.get("reason", "No reason recorded")
-            ts = e.get("timestamp")
-            ts_text = f" | Banned at: <t:{int(ts)}:F>" if ts else ""
-        else:
-            uid = e
-            reason = "No reason recorded"
-            ts_text = ""
-        lines.append(f"{i}. {uid} | Reason: {reason}{ts_text}")
-    text = "\n".join(lines) or "No banned users."
-    if len(text) <= 1800:
-        await interaction.response.send_message(f"**Banned users:**\n{text}", ephemeral=True)
-    else:
-        bio = io.StringIO()
-        bio.write(text)
-        bio.seek(0)
-        await interaction.response.send_message(file=discord.File(bio, "banned_users.txt"), ephemeral=True)
 
 @tree.command(name="list_removed", description="List removed guilds (owner-only)")
 @owner_only()
@@ -462,65 +342,58 @@ async def list_removed(interaction: discord.Interaction):
     if len(text) <= 1800:
         await interaction.response.send_message(f"**Removed guilds:**\n{text}", ephemeral=True)
     else:
-        bio = io.StringIO()
-        bio.write(text)
+        bio = io.StringIO(text)
         bio.seek(0)
         await interaction.response.send_message(file=discord.File(bio, "removed_guilds.txt"), ephemeral=True)
 
-# ---- Announce global ----
-@tree.command(name="announce", description="Send a global announcement (owner-only)")
+# ---- Manage owners commands ----
+@tree.command(name="list_owners", description="List all bot owners (owner-only)")
 @owner_only()
-@app_commands.describe(message="Message to announce globally (multi-line allowed)")
-async def announce(interaction: discord.Interaction, message: str):
-    embed = discord.Embed(title="Global Announcement From Developer", description=message, color=0x0000ff)
-    sent_count = 0
-    for guild in client.guilds:
-        for channel in guild.text_channels:
-            if channel.permissions_for(guild.me).send_messages:
-                try:
-                    await channel.send(embed=embed)
-                    sent_count += 1
-                except:
-                    pass
-                break
-    await interaction.response.send_message(f"✅ Announcement sent to {sent_count} guilds.", ephemeral=True)
+async def list_owners(interaction: discord.Interaction):
+    lines = [f"{i+1}. <@{uid}> | {uid}" for i, uid in enumerate(OWNER_IDS)]
+    text = "\n".join(lines) or "No owners set."
+    await interaction.response.send_message(f"**Bot Owners:**\n{text}", ephemeral=True)
 
-# ---- Maintenance toggle ----
-@tree.command(name="maintenance", description="Toggle maintenance mode (owner-only)")
+@tree.command(name="add_owner", description="Add a new bot owner (owner-only)")
 @owner_only()
-@app_commands.describe(state="on/off")
-async def maintenance_cmd(interaction: discord.Interaction, state: str):
-    s = state.lower()
-    if s not in ["on", "off"]:
-        await interaction.response.send_message("use: /maintenance on  |  /maintenance off", ephemeral=True)
-        return
-    global MAINTENANCE
-    MAINTENANCE = (s == "on")
-    await interaction.response.send_message(f"maintenance set to **{s}**", ephemeral=True)
-
-# ---- Sync ----
-@tree.command(name="update_tree", description="Sync slash commands (owner-only)")
-@owner_only()
-async def update_tree(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
+@app_commands.describe(user_id="User ID to add as owner")
+async def add_owner(interaction: discord.Interaction, user_id: str):
     try:
-        synced = await tree.sync()
-        await interaction.followup.send(f"✅ Commands tree synced! Total commands: {len(synced)}", ephemeral=True)
-    except Exception as e:
-        await interaction.followup.send(f"❌ Failed to sync commands tree: {e}", ephemeral=True)
+        uid = int(user_id)
+    except:
+        await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
+        return
+    if uid in OWNER_IDS:
+        await interaction.response.send_message("⚠️ User is already an owner.", ephemeral=True)
+        return
+    OWNER_IDS.append(uid)
+    await interaction.response.send_message(f"✅ <@{uid}> added as owner.", ephemeral=True)
+
+@tree.command(name="remove_owner", description="Remove a bot owner (owner-only)")
+@owner_only()
+@app_commands.describe(user_id="User ID to remove from owners")
+async def remove_owner(interaction: discord.Interaction, user_id: str):
+    try:
+        uid = int(user_id)
+    except:
+        await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
+        return
+    if uid not in OWNER_IDS:
+        await interaction.response.send_message("⚠️ User is not an owner.", ephemeral=True)
+        return
+    OWNER_IDS.remove(uid)
+    await interaction.response.send_message(f"✅ <@{uid}> removed from owners.", ephemeral=True)
 
 # ---- Events ----
 @client.event
 async def on_ready():
-    try:
-        await tree.sync()
-    except Exception as e:
-        print(f"[WARN] sync failed on_ready: {e}")
+    await tree.sync()
     print(f"✅ Logged in as {client.user}")
-    print(f"In {len(client.guilds)} guilds.")
-    total_members = sum(g.member_count for g in client.guilds if getattr(g, "member_count", None))
-    print(f"Reaching approx {total_members} members.")
-    print("Currently banned guild ids:", [ (e if not isinstance(e, dict) else e.get('id')) for e in BANNED_GUILDS ])
+    print("Slash commands synced and ready!")
+    print("Guilds bot is in:")
+    for g in client.guilds:
+        print(f"{g.name} | {g.id}")
+    print("Currently banned guild ids:", [g["id"] for g in BANNED_GUILDS])
 
 @client.event
 async def on_guild_join(guild):
@@ -532,8 +405,9 @@ async def on_guild_remove(guild):
     REMOVED_GUILDS.append({"id": guild.id, "name": guild.name})
     save_json(REMOVED_LOG, REMOVED_GUILDS)
 
-# ---- Run ----
-if __name__ == "__main__":
-    # start flask in background
-    threading.Thread(target=run_flask, daemon=True).start()
-    client.run(TOKEN)
+# ---- Run Flask ----
+flask_thread = threading.Thread(target=run_flask)
+flask_thread.start()
+
+# ---- Run Discord ----
+client.run(TOKEN)
