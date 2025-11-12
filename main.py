@@ -212,7 +212,7 @@ async def fetch_group_posts(guild_id=None):
     for post in data.get("data", []):
         content = post.get("body", "")
         # only accept /share/ links
-        found = re.findall(r"(https?://(?:www\.)?roblox\.com/share/[^\s]+)", content)
+        found = re.findall(r"https?://(?:www\.)?roblox\.com/share/[A-Za-z0-9_\-?=&#%/.]+(?=\b|\s|$)", content)
 
         for link in found:
             if link not in existing:
