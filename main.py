@@ -506,20 +506,28 @@ async def list_removed(interaction: discord.Interaction):
 @app_commands.describe(message="Message to announce globally (multi-line allowed)")
 async def announce(interaction: discord.Interaction, message: str):
     embed = discord.Embed(
-        title="Global Announcement From Developer",
+        title="Global Announcement From Developer/Global Raid Announcement",
         description=message,
         color=0x0000ff
     )
     sent_count = 0
+    keywords = ("general", "raid", "link", "bot", "chat")
+
     for guild in client.guilds:
+        target_channel = None
         for channel in guild.text_channels:
-            if channel.permissions_for(guild.me).send_messages:
-                try:
-                    await channel.send(embed=embed)
-                    sent_count += 1
-                except:
-                    pass
-                break
+            name_lower = channel.name.lower()
+            if any(k in name_lower for k in keywords):
+                target_channel = channel
+                break  # first matching channel
+
+        if target_channel:
+            try:
+                await target_channel.send(embed=embed)
+                sent_count += 1
+            except:
+                pass
+
     await interaction.response.send_message(f"✅ Announcement sent to {sent_count} guilds.", ephemeral=True)
 
 # ---- maintenance toggle ----
