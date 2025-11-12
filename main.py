@@ -22,7 +22,9 @@ BANNED_FILE = "banned_guilds.json"
 REMOVED_LOG = "removed_guilds.json"
 BANNED_USERS_FILE = "banned_users.json"
 TEMP_BANS_FILE = "tempbans.json"
-
+if not os.path.exists("seen_links.json"):
+    with open("seen_links.json", "w") as f:
+        json.dump({}, f)
 # ---- load / save helpers ----
 def load_json(path, default):
     try:
@@ -156,7 +158,6 @@ async def check_guild_ban(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return True
     return False
-
 # ---- Fetch group posts ----
 MEMORY_FILE = "seen_links.json"
 
@@ -164,18 +165,32 @@ def load_seen_links():
     if os.path.exists(MEMORY_FILE):
         try:
             with open(MEMORY_FILE, "r") as f:
-                return set(json.load(f))
+                return json.load(f)  # dict of guild_id -> list
         except:
-            return set()
-    return set()
+            return {}
+    return {}
 
-def save_seen_links(seen):
+def save_seen_links(data):
     with open(MEMORY_FILE, "w") as f:
-        json.dump(list(seen), f)
-
-async def fetch_group_posts():
+        json.dump(data, f)
+def clean_old_links():
+    data = load_seen_links()
+    modified = False
+    for gid, links in data.items():
+        if len(links) > 1000:  # cap at 1000 stored links per guild
+            data[gid] = links[-500:]  # keep only the most recent 500
+            modified = True
+    if modified:
+        save_seen_links(data)
+        print("🧹 cleaned old links from memory file")
+async def fetch_group_posts(guild_id=None):
     if not GROUP_ID:
         return []
+
+    # load or init guild-specific memory
+    seen_links = load_seen_links()
+    if str(guild_id) not in seen_links:
+        seen_links[str(guild_id)] = []
 
     url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
     headers = {"Cookie": f".ROBLOSECURITY={ROBLOX_COOKIE}"} if ROBLOX_COOKIE else {}
@@ -191,8 +206,8 @@ async def fetch_group_posts():
         print(f"[ERROR] fetch_group_posts: {e}")
         return []
 
-    seen_links = load_seen_links()
     unique_links = []
+    existing = set(seen_links[str(guild_id)])
 
     for post in data.get("data", []):
         content = post.get("body", "")
@@ -200,14 +215,17 @@ async def fetch_group_posts():
         found = re.findall(r"(https?://(?:www\.)?roblox\.com/share/[^\s]+)", content)
 
         for link in found:
-            if link not in seen_links:
-                seen_links.add(link)
+            if link not in existing:
+                existing.add(link)
                 unique_links.append(link)
 
+    # save updated memory
+    seen_links[str(guild_id)] = list(existing)
     if unique_links:
         save_seen_links(seen_links)
 
     return unique_links
+
 
 # ---- Maintenance flag ----
 MAINTENANCE = False
@@ -215,11 +233,13 @@ def set_maintenance(state: bool):
     global MAINTENANCE
     MAINTENANCE = state
 
+
 # ---- Owner-only check decorator ----
 def owner_only():
     def predicate(interaction: discord.Interaction):
         return interaction.user.id == OWNER_ID
     return app_commands.check(predicate)
+
 
 # ---- /links command ----
 @tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
@@ -232,14 +252,12 @@ async def links_command(interaction: discord.Interaction):
         return
 
     await interaction.response.defer(thinking=True)
-    links = await fetch_group_posts(interaction.guild_id)  # guild-specific memory
+    links = await fetch_group_posts(interaction.guild_id)
     if not links:
         await interaction.followup.send("No roblox.com/share links found 😢")
         return
 
-    pretty = []
-    for i, l in enumerate(links[:10], start=1):
-        pretty.append(f"[Click Here ({i})]({l})")
+    pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
     message = "\n\n".join(pretty)
 
     title = "⚠️ Latest SAB Scammer PS Links 🔗"
@@ -269,7 +287,7 @@ async def onelink_command(interaction: discord.Interaction):
             return
 
         await interaction.response.defer(thinking=True)
-        links = await fetch_group_posts(interaction.guild_id)  # guild-specific memory
+        links = await fetch_group_posts(interaction.guild_id)
         if not links:
             await interaction.followup.send("No roblox.com/share links found 😢", ephemeral=True)
             return
@@ -548,7 +566,16 @@ async def on_guild_remove(guild):
     print(f"Removed from guild: {guild.name} | {guild.id}")
     REMOVED_GUILDS.append({"id": guild.id, "name": guild.name})
     save_json(REMOVED_LOG, REMOVED_GUILDS)
+@client.event
+async def on_ready():
+    print(f"✅ Logged in as {client.user}")
+    
+    async def periodic_cleanup():
+        while True:
+            await asyncio.sleep(3600 * 6)  # every 6 hours
+            clean_old_links()
 
+    client.loop.create_task(periodic_cleanup())
 # ---- start services ----
 if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
