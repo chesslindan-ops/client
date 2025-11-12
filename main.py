@@ -437,8 +437,8 @@ async def ban_invite(interaction: discord.Interaction, invite: str, reason: str)
         return
     BANNED_GUILDS.append({"id": gid, "name": name, "reason": reason, "timestamp": time.time()})
     save_json(BANNED_FILE, BANNED_GUILDS)
-    await interaction.response.send_message(f"✅ Guild **{name}** banned.\n**Reason:** {reason}", ephemeral=True)
-
+    await interaction.response.send_message(
+    f"✅ Guild `{name}` (ID: `{gid}`) banned.\n**Reason:** {reason}", ephemeral=True)
 # ---- listing commands ----
 @tree.command(name="list_banned", description="List all banned guilds (owner-only)")
 @owner_only()
