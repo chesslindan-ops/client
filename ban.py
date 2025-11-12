@@ -163,16 +163,14 @@ async def links_command(interaction: discord.Interaction):
         )
     else:
         embed = discord.Embed(
-            title="FATAL ERROR. VARIABLE GUILD_STATUS IS SET TO 2 (Suspension)",
-            description="This service has been shut down temporarily by the developer due to certain clash of interests. We are working with the server owner to fix this and hope to see the bot functioning very soon. Sorry for the inconvenience.",
+            title="FATAL ERROR. VARIABLE GUILD_STATUS IS SET TO 3 (Blacklist)",
+            description="This service has been shut down **permanently** by the developer due to the server owner's incompetence to talk to us about issues and instead banning when we put a placeholder message. We will not provide service to this server until the clash of interests is settled. Sorry for the inconvenience.",
             color=0xff0000
         )
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS | Hosted by Quesadillo's Mansion")
 
     # create button
-    button = discord.ui.Button(label="Click here!", url=links[0])
-    view = discord.ui.View()
-    view.add_item(button)
+    
 
     await interaction.followup.send(embed=embed, view=view)
 
