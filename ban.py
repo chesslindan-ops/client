@@ -172,7 +172,7 @@ async def links_command(interaction: discord.Interaction):
     # create button
     
 
-    await interaction.followup.send(embed=embed, view=view)
+    await interaction.followup.send(embed=embed)
 
 # ---- Owner-only decorator ----
 def owner_only():
