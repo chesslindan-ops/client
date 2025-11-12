@@ -232,7 +232,7 @@ async def links_command(interaction: discord.Interaction):
         return
 
     await interaction.response.defer(thinking=True)
-    links = await fetch_group_posts()
+    links = await fetch_group_posts(interaction.guild_id)  # guild-specific memory
     if not links:
         await interaction.followup.send("No roblox.com/share links found 😢")
         return
@@ -247,22 +247,29 @@ async def links_command(interaction: discord.Interaction):
         title = "⚠️ Maintenance Mode 🟠 | Latest SAB Scammer Links 🔗"
         message = f"⚠️ The bot is currently in maintenance mode and may experience issues.\n\n{message}"
 
-    embed = discord.Embed(title=title, description=message, color=0x00ffcc if not MAINTENANCE else 0xFFA500)
+    embed = discord.Embed(
+        title=title,
+        description=message,
+        color=0x00ffcc if not MAINTENANCE else 0xFFA500
+    )
     embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
+
     await interaction.followup.send(embed=embed)
+
 
 # ---- /onelink command ----
 @tree.command(name="onelink", description="Get the first scammer private server link with a button")
 async def onelink_command(interaction: discord.Interaction):
     try:
+        # guild + user ban checks
         if await check_guild_ban(interaction):
             return
         if await check_user_ban(interaction):
             return
 
         await interaction.response.defer(thinking=True)
-        links = await fetch_group_posts()
+        links = await fetch_group_posts(interaction.guild_id)  # guild-specific memory
         if not links:
             await interaction.followup.send("No roblox.com/share links found 😢", ephemeral=True)
             return
@@ -272,11 +279,16 @@ async def onelink_command(interaction: discord.Interaction):
         view.add_item(Button(label="Click Here 🔗", url=first_link, style=discord.ButtonStyle.link))
 
         color = 0x00ffcc if not MAINTENANCE else 0xFFA500
-        embed = discord.Embed(title="⚠️ Latest SAB Scammer PS Link 🔗", description="Click the button below to visit the link.", color=color)
+        embed = discord.Embed(
+            title="⚠️ Latest SAB Scammer PS Link 🔗",
+            description="Click the button below to visit the link.",
+            color=color
+        )
         embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
         embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
 
         await interaction.followup.send(embed=embed, view=view)
+
     except Exception as e:
         print(f"[ERROR] /onelink: {e}")
         try:
