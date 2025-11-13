@@ -1,4 +1,4 @@
-# main.py  - PART 1
+# main.py  - FULL (modified only to add no_appeal flag + timestamp)
 import os
 import re
 import threading
@@ -118,8 +118,10 @@ async def check_user_ban(interaction: discord.Interaction):
         reason = entry.get("reason", "No reason provided")
         ts = entry.get("timestamp")
         ts_text = f"\nBanned at: <t:{int(ts)}:F>" if ts else ""
+        no_appeal = entry.get("no_appeal", False)
+        appeal_text = "\nThis ban cannot be appealed." if no_appeal else "\nIf you believe this is a mistake, DM **@h.aze.l**."
         await interaction.response.send_message(
-            f"🚫 You are banned from using this bot.\n**Reason:** {reason}{ts_text}\nIf you believe this is a mistake, DM **@h.aze.l**.",
+            f"🚫 You are banned from using this bot.\n**Reason:** {reason}{ts_text}{appeal_text}",
             ephemeral=True,
         )
         return True
@@ -129,8 +131,11 @@ async def check_user_ban(interaction: discord.Interaction):
     if tentry:
         reason = tentry.get("reason", "No reason provided")
         expires = int(tentry.get("expires", time.time()))
+        # tempbans may optionally include no_appeal if you later add it; handle gracefully:
+        no_appeal = tentry.get("no_appeal", False)
+        appeal_text = "\nThis ban cannot be appealed." if no_appeal else ""
         await interaction.response.send_message(
-            f"⏳ You are temporarily banned from this bot.\n**Reason:** {reason}\nBan expires: <t:{expires}:F>",
+            f"⏳ You are temporarily banned from this bot.\n**Reason:** {reason}\nBan expires: <t:{expires}:F>{appeal_text}",
             ephemeral=True,
         )
         return True
@@ -150,9 +155,11 @@ async def check_guild_ban(interaction: discord.Interaction):
         name = entry.get("name") or (interaction.guild.name if interaction.guild else "Unknown")
         ts = entry.get("timestamp")
         ts_text = f"\nBanned at: <t:{int(ts)}:F>" if ts else ""
+        no_appeal = entry.get("no_appeal", False)
+        appeal_text = "\nThis ban cannot be appealed." if no_appeal else "\n Contact **@h.aze.l** to appeal."
         embed = discord.Embed(
             title="Access Denied ❌",
-            description=f"This server is blacklisted from using this bot.\n**Server:** {name}\n**Reason:** {reason}{ts_text}\n Contact **@h.aze.l** to appeal.",
+            description=f"This server is blacklisted from using this bot.\n**Server:** {name}\n**Reason:** {reason}{ts_text}{appeal_text}",
             color=discord.Color.red(),
         )
         embed.set_thumbnail(url="https://toppng.com/uploads/preview/red-cross-mark-download-png-red-cross-check-mark-11562934675swbmqcbecx.png")
@@ -318,8 +325,8 @@ async def onelink_command(interaction: discord.Interaction):
 # ---- Ban / Unban users (with reasons) ----
 @tree.command(name="ban_user", description="Ban a user (owner-only)")
 @owner_only()
-@app_commands.describe(user_id="User ID to ban", reason="Reason for the ban")
-async def ban_user(interaction: discord.Interaction, user_id: str, reason: str):
+@app_commands.describe(user_id="User ID to ban", reason="Reason for the ban", no_appeal="True if ban cannot be appealed")
+async def ban_user(interaction: discord.Interaction, user_id: str, reason: str, no_appeal: bool):
     uid = to_int(user_id)
     if not uid:
         await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
@@ -327,7 +334,7 @@ async def ban_user(interaction: discord.Interaction, user_id: str, reason: str):
     if find_banned_user_entry(uid):
         await interaction.response.send_message("⚠️ User already banned.", ephemeral=True)
         return
-    entry = {"id": uid, "reason": reason, "timestamp": time.time()}
+    entry = {"id": uid, "reason": reason, "timestamp": int(time.time()), "no_appeal": no_appeal}
     BANNED_USERS.append(entry)
     save_json(BANNED_USERS_FILE, BANNED_USERS)
     await interaction.response.send_message(f"✅ User `{uid}` banned.\n**Reason:** {reason}", ephemeral=True)
@@ -374,8 +381,8 @@ async def tempban(interaction: discord.Interaction, user_id: str, duration_minut
 # ---- Guild bans / invite ban ----
 @tree.command(name="ban_guild", description="Ban a guild (owner-only)")
 @owner_only()
-@app_commands.describe(guild_id="Guild ID to ban", reason="Reason for guild ban")
-async def ban_guild(interaction: discord.Interaction, guild_id: str, reason: str):
+@app_commands.describe(guild_id="Guild ID to ban", reason="Reason for guild ban", no_appeal="True if ban cannot be appealed")
+async def ban_guild(interaction: discord.Interaction, guild_id: str, reason: str, no_appeal: bool):
     gid = to_int(guild_id)
     if not gid:
         await interaction.response.send_message("❌ Invalid guild ID.", ephemeral=True)
@@ -385,7 +392,7 @@ async def ban_guild(interaction: discord.Interaction, guild_id: str, reason: str
         return
     g = client.get_guild(gid)
     name = g.name if g else None
-    entry = {"id": gid, "name": name, "reason": reason, "timestamp": time.time()}
+    entry = {"id": gid, "name": name, "reason": reason, "timestamp": int(time.time()), "no_appeal": no_appeal}
     BANNED_GUILDS.append(entry)
     save_json(BANNED_FILE, BANNED_GUILDS)
     await interaction.response.send_message(f"✅ Guild `{name or gid}` banned.\n**Reason:** {reason}", ephemeral=True)
@@ -408,8 +415,8 @@ async def unban_guild(interaction: discord.Interaction, guild_id: str):
 
 @tree.command(name="ban_invite", description="Ban a guild by invite (owner-only)")
 @owner_only()
-@app_commands.describe(invite="Invite code or URL", reason="Reason for ban")
-async def ban_invite(interaction: discord.Interaction, invite: str, reason: str):
+@app_commands.describe(invite="Invite code or URL", reason="Reason for ban", no_appeal="True if ban cannot be appealed")
+async def ban_invite(interaction: discord.Interaction, invite: str, reason: str, no_appeal: bool):
     m = re.search(r"(?:discord\.gg/|discordapp\.com/invite/)?([A-Za-z0-9\-]+)$", invite.strip())
     if not m:
         await interaction.response.send_message("❌ Could not parse invite.", ephemeral=True)
@@ -435,7 +442,8 @@ async def ban_invite(interaction: discord.Interaction, invite: str, reason: str)
     if find_banned_guild_entry(gid):
         await interaction.response.send_message(f"⚠️ Guild **{name}** already banned.", ephemeral=True)
         return
-    BANNED_GUILDS.append({"id": gid, "name": name, "reason": reason, "timestamp": time.time()})
+    # include no_appeal and timestamp
+    BANNED_GUILDS.append({"id": gid, "name": name, "reason": reason, "timestamp": int(time.time()), "no_appeal": no_appeal})
     save_json(BANNED_FILE, BANNED_GUILDS)
     await interaction.response.send_message(
     f"✅ Guild `{name}` (ID: `{gid}`) banned.\n**Reason:** {reason}", ephemeral=True)
