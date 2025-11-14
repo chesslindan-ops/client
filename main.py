@@ -1,10 +1,11 @@
-# main.py  - FULL (modified only to add no_appeal flag + timestamp)
+# main.py  - FULL (fixed: merged duplicate on_ready, added asyncio import, small bugfixes)
 import os
 import re
 import threading
 import json
 import io
 import time
+import asyncio
 import discord
 from discord import app_commands
 from flask import Flask
@@ -22,9 +23,13 @@ BANNED_FILE = "banned_guilds.json"
 REMOVED_LOG = "removed_guilds.json"
 BANNED_USERS_FILE = "banned_users.json"
 TEMP_BANS_FILE = "tempbans.json"
-if not os.path.exists("seen_links.json"):
-    with open("seen_links.json", "w") as f:
+MEMORY_FILE = "seen_links.json"
+
+# ensure seen_links exists
+if not os.path.exists(MEMORY_FILE):
+    with open(MEMORY_FILE, "w") as f:
         json.dump({}, f)
+
 # ---- load / save helpers ----
 def load_json(path, default):
     try:
@@ -166,9 +171,8 @@ async def check_guild_ban(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return True
     return False
-# ---- Fetch group posts ----
-MEMORY_FILE = "seen_links.json"
 
+# ---- Fetch group posts ----
 def load_seen_links():
     if os.path.exists(MEMORY_FILE):
         try:
@@ -181,6 +185,7 @@ def load_seen_links():
 def save_seen_links(data):
     with open(MEMORY_FILE, "w") as f:
         json.dump(data, f)
+
 def clean_old_links():
     data = load_seen_links()
     modified = False
@@ -191,6 +196,7 @@ def clean_old_links():
     if modified:
         save_seen_links(data)
         print("🧹 cleaned old links from memory file")
+
 async def fetch_group_posts(guild_id=None):
     if not GROUP_ID:
         return []
@@ -234,20 +240,17 @@ async def fetch_group_posts(guild_id=None):
 
     return unique_links
 
-
 # ---- Maintenance flag ----
 MAINTENANCE = False
 def set_maintenance(state: bool):
     global MAINTENANCE
     MAINTENANCE = state
 
-
 # ---- Owner-only check decorator ----
 def owner_only():
     def predicate(interaction: discord.Interaction):
         return interaction.user.id == OWNER_ID
     return app_commands.check(predicate)
-
 
 # ---- /links command ----
 @tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
@@ -282,7 +285,6 @@ async def links_command(interaction: discord.Interaction):
     embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
 
     await interaction.followup.send(embed=embed)
-
 
 # ---- /onelink command ----
 @tree.command(name="onelink", description="Get the first scammer private server link with a button")
@@ -376,7 +378,6 @@ async def tempban(interaction: discord.Interaction, user_id: str, duration_minut
     TEMP_BANS.append({"id": uid, "expires": expires_at, "reason": reason})
     save_tempbans()
     await interaction.response.send_message(f"✅ User `{uid}` tempbanned for {duration_minutes} minutes.\n**Reason:** {reason}", ephemeral=True)
-    # main.py - PART 2 (append after PART 1)
 
 # ---- Guild bans / invite ban ----
 @tree.command(name="ban_guild", description="Ban a guild (owner-only)")
@@ -447,6 +448,7 @@ async def ban_invite(interaction: discord.Interaction, invite: str, reason: str,
     save_json(BANNED_FILE, BANNED_GUILDS)
     await interaction.response.send_message(
     f"✅ Guild `{name}` (ID: `{gid}`) banned.\n**Reason:** {reason}", ephemeral=True)
+
 # ---- listing commands ----
 @tree.command(name="list_banned", description="List all banned guilds (owner-only)")
 @owner_only()
@@ -561,7 +563,7 @@ async def update_tree(interaction: discord.Interaction):
     except Exception as e:
         await interaction.followup.send(f"❌ Failed to sync commands tree: {e}", ephemeral=True)
 
-# ---- events ----
+# ---- events (MERGED single on_ready) ----
 @client.event
 async def on_ready():
     try:
@@ -574,6 +576,14 @@ async def on_ready():
     print(f"Reaching approx {total_members} members.")
     print("Currently banned guild ids:", [ (e if not isinstance(e, dict) else e.get('id')) for e in BANNED_GUILDS ])
 
+    # periodic cleanup task
+    async def periodic_cleanup():
+        while True:
+            await asyncio.sleep(3600 * 6)  # every 6 hours
+            clean_old_links()
+
+    client.loop.create_task(periodic_cleanup())
+
 @client.event
 async def on_guild_join(guild):
     print(f"Joined guild: {guild.name} | {guild.id}")
@@ -583,16 +593,7 @@ async def on_guild_remove(guild):
     print(f"Removed from guild: {guild.name} | {guild.id}")
     REMOVED_GUILDS.append({"id": guild.id, "name": guild.name})
     save_json(REMOVED_LOG, REMOVED_GUILDS)
-@client.event
-async def on_ready():
-    print(f"✅ Logged in as {client.user}")
-    
-    async def periodic_cleanup():
-        while True:
-            await asyncio.sleep(3600 * 6)  # every 6 hours
-            clean_old_links()
 
-    client.loop.create_task(periodic_cleanup())
 # ---- start services ----
 if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
