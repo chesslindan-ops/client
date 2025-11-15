@@ -511,59 +511,79 @@ async def list_removed(interaction: discord.Interaction):
         await interaction.response.send_message(file=discord.File(bio, "removed_guilds.txt"), ephemeral=True)
 
 # ---- announce (global) ----
-@tree.command(name="announce", description="Send a global announcement (owner-only)")
+@tree.command(name="announce", description="Send a global announcement")
 @owner_only()
-@app_commands.describe(message="Message to announce globally (multi-line allowed)")
+@app_commands.describe(message="Message to broadcast")
 async def announce(interaction: discord.Interaction, message: str):
     await interaction.response.send_message("starting broadcast…", ephemeral=True)
-    msg = await interaction.original_response()
+    status_msg = await interaction.original_response()
+
+    embed = discord.Embed(
+        title="Global Announcement",
+        description=message,
+        color=0x0066ff
+    )
+
+    keywords = ("general", "chat", "bot", "raid", "link")
+
+    async def pick_channel(guild: discord.Guild):
+        # keyword channels first
+        for ch in guild.text_channels:
+            if any(k in ch.name.lower() for k in keywords):
+                perms = ch.permissions_for(guild.me)
+                if perms.send_messages and perms.view_channel:
+                    return ch
+
+        # any writable channel fallback
+        for ch in guild.text_channels:
+            perms = ch.permissions_for(guild.me)
+            if perms.send_messages and perms.view_channel:
+                return ch
+
+        return None
+
+    async def safe_send(ch):
+        try:
+            return await asyncio.wait_for(ch.send(embed=embed), timeout=2)
+        except:
+            return None
 
     async def broadcaster():
-        embed = discord.Embed(
-            title="Global Announcement From Developer/Global Raid Announcement",
-            description=message,
-            color=0x0000ff
-        )
-
-        keywords = ("general", "raid", "link", "bot", "chat")
+        guilds = list(client.guilds)
+        total = len(guilds)
         sent_count = 0
-        total = len(client.guilds)
 
-        for idx, guild in enumerate(client.guilds, start=1):
-            target_channel = None
+        delay = 0.15
+        burst_limit = 20
 
-            for ch in guild.text_channels:
-                if any(k in ch.name.lower() for k in keywords):
-                    target_channel = ch
-                    break
-
-            if target_channel:
-                try:
-                    await asyncio.wait_for(target_channel.send(embed=embed), timeout=3)
+        for i, guild in enumerate(guilds, start=1):
+            ch = await pick_channel(guild)
+            if ch:
+                res = await safe_send(ch)
+                if res:
                     sent_count += 1
-                except:
-                    pass
 
-            # update msg every 25 guilds
-            if idx % 25 == 0 or idx == total:
+                if sent_count % burst_limit == 0:
+                    await asyncio.sleep(1.2)
+
+            if i % 25 == 0 or i == total:
                 try:
-                    await msg.edit(
-                        content=f"broadcasting… {idx}/{total} guilds processed\nsent: {sent_count}"
+                    await status_msg.edit(
+                        content=f"broadcasting… {i}/{total} guilds\nsent: {sent_count}"
                     )
                 except:
                     pass
 
-            await asyncio.sleep(0.25)  # faster but still safe
+            await asyncio.sleep(delay)
 
         try:
-            await msg.edit(
+            await status_msg.edit(
                 content=f"done! sent in {sent_count}/{total} guilds."
             )
         except:
             pass
 
     client.loop.create_task(broadcaster())
-
 # ---- maintenance toggle ----
 @tree.command(name="maintenance", description="Toggle maintenance mode (owner-only)")
 @owner_only()
