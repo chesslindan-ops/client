@@ -515,30 +515,38 @@ async def list_removed(interaction: discord.Interaction):
 @owner_only()
 @app_commands.describe(message="Message to announce globally (multi-line allowed)")
 async def announce(interaction: discord.Interaction, message: str):
-    embed = discord.Embed(
-        title="Global Announcement From Developer/Global Raid Announcement",
-        description=message,
-        color=0x0000ff
-    )
-    sent_count = 0
-    keywords = ("general", "raid", "link", "bot", "chat")
+    await interaction.response.send_message("starting broadcast…", ephemeral=True)
 
-    for guild in client.guilds:
-        target_channel = None
-        for channel in guild.text_channels:
-            name_lower = channel.name.lower()
-            if any(k in name_lower for k in keywords):
-                target_channel = channel
-                break  # first matching channel
+    async def broadcaster():
+        embed = discord.Embed(
+            title="Global Announcement From Developer/Global Raid Announcement",
+            description=message,
+            color=0x0000ff
+        )
 
-        if target_channel:
-            try:
-                await target_channel.send(embed=embed)
-                sent_count += 1
-            except:
-                pass
+        keywords = ("general", "raid", "link", "bot", "chat")
+        sent_count = 0
 
-    await interaction.response.send_message(f"✅ Announcement sent to {sent_count} guilds.", ephemeral=True)
+        for guild in client.guilds:
+            target_channel = None
+            for channel in guild.text_channels:
+                if any(k in channel.name.lower() for k in keywords):
+                    target_channel = channel
+                    break
+
+            if target_channel:
+                try:
+                    await target_channel.send(embed=embed)
+                    sent_count += 1
+                except:
+                    pass
+
+                await asyncio.sleep(1)  # rate limit protection
+
+        print(f"[BROADCAST] done. sent to {sent_count} guilds.")
+
+    # run it without blocking
+    client.loop.create_task(broadcaster())
 
 # ---- maintenance toggle ----
 @tree.command(name="maintenance", description="Toggle maintenance mode (owner-only)")
