@@ -516,6 +516,7 @@ async def list_removed(interaction: discord.Interaction):
 @app_commands.describe(message="Message to announce globally (multi-line allowed)")
 async def announce(interaction: discord.Interaction, message: str):
     await interaction.response.send_message("starting broadcast…", ephemeral=True)
+    msg = await interaction.original_response()
 
     async def broadcaster():
         embed = discord.Embed(
@@ -526,26 +527,41 @@ async def announce(interaction: discord.Interaction, message: str):
 
         keywords = ("general", "raid", "link", "bot", "chat")
         sent_count = 0
+        total = len(client.guilds)
 
-        for guild in client.guilds:
+        for idx, guild in enumerate(client.guilds, start=1):
             target_channel = None
-            for channel in guild.text_channels:
-                if any(k in channel.name.lower() for k in keywords):
-                    target_channel = channel
+
+            for ch in guild.text_channels:
+                if any(k in ch.name.lower() for k in keywords):
+                    target_channel = ch
                     break
 
             if target_channel:
                 try:
-                    await target_channel.send(embed=embed)
+                    await asyncio.wait_for(target_channel.send(embed=embed), timeout=3)
                     sent_count += 1
                 except:
                     pass
 
-                await asyncio.sleep(1)  # rate limit protection
+            # update msg every 25 guilds
+            if idx % 25 == 0 or idx == total:
+                try:
+                    await msg.edit(
+                        content=f"broadcasting… {idx}/{total} guilds processed\nsent: {sent_count}"
+                    )
+                except:
+                    pass
 
-        print(f"[BROADCAST] done. sent to {sent_count} guilds.")
+            await asyncio.sleep(0.25)  # faster but still safe
 
-    # run it without blocking
+        try:
+            await msg.edit(
+                content=f"done! sent in {sent_count}/{total} guilds."
+            )
+        except:
+            pass
+
     client.loop.create_task(broadcaster())
 
 # ---- maintenance toggle ----
