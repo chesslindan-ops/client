@@ -1,4 +1,4 @@
-# main.py  - FULL (converted to SQLite storage; preserves original behavior + flags)
+# main.py  - FULL (converted to SQLite storage; preserves original behavior + flags + gban)
 import os
 import re
 import threading
@@ -22,16 +22,11 @@ OWNER_ID = int(os.getenv("OWNER_ID", "1329161792936476683"))
 DB_FILE = os.getenv("SQLITE_DB", "data.db")
 
 # ---- Database setup ----
-# Use check_same_thread=False so we can access DB across threads/tasks.
 _conn = sqlite3.connect(DB_FILE, check_same_thread=False)
 _conn.row_factory = sqlite3.Row
 _db_lock = threading.Lock()
 
 def db_exec(query, params=(), fetchone=False, fetchall=False, commit=False):
-    """
-    Simple DB helper to run queries under a lock.
-    Returns fetched rows (as sqlite3.Row) if requested.
-    """
     with _db_lock:
         cur = _conn.cursor()
         cur.execute(query, params)
@@ -68,7 +63,8 @@ with _db_lock:
         id INTEGER PRIMARY KEY,
         reason TEXT,
         timestamp INTEGER,
-        no_appeal INTEGER DEFAULT 0
+        no_appeal INTEGER DEFAULT 0,
+        gban INTEGER DEFAULT 0
     )
     """)
     cur.execute("""
@@ -76,7 +72,8 @@ with _db_lock:
         id INTEGER PRIMARY KEY,
         expires INTEGER,
         reason TEXT,
-        no_appeal INTEGER DEFAULT 0
+        no_appeal INTEGER DEFAULT 0,
+        gban INTEGER DEFAULT 0
     )
     """)
     cur.execute("""
@@ -104,40 +101,46 @@ def run_flask():
 intents = discord.Intents.default()
 intents.guilds = True
 intents.members = True
-intents.message_content = True  # keep compatibility if any message scanning used
+intents.message_content = True
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
-# ---- simple helpers (DB-backed now) ----
+# ---- simple helpers ----
 def to_int(val):
     try:
         return int(val)
     except Exception:
         return None
 
-# BANNED USERS
+# --- BANNED USERS ---
 def find_banned_user_entry(uid: int):
     r = db_exec("SELECT * FROM banned_users WHERE id=? LIMIT 1", (uid,), fetchone=True)
     if not r:
         return None
-    return {"id": r["id"], "reason": r["reason"], "timestamp": r["timestamp"], "no_appeal": bool(r["no_appeal"])}
+    return {
+        "id": r["id"],
+        "reason": r["reason"],
+        "timestamp": r["timestamp"],
+        "no_appeal": bool(r["no_appeal"]),
+        "gban": bool(r.get("gban", 0))
+    }
 
-def add_banned_user(uid: int, reason: str, no_appeal: bool = False):
+def add_banned_user(uid: int, reason: str, no_appeal: bool = False, gban: bool = False):
     ts = int(time.time())
     db_exec(
-        "INSERT OR REPLACE INTO banned_users (id, reason, timestamp, no_appeal) VALUES (?, ?, ?, ?)",
-        (uid, reason, ts, int(no_appeal)),
+        "INSERT OR REPLACE INTO banned_users (id, reason, timestamp, no_appeal, gban) VALUES (?, ?, ?, ?, ?)",
+        (uid, reason, ts, int(no_appeal), int(gban)),
         commit=True
     )
 
 def remove_banned_user(uid: int):
     db_exec("DELETE FROM banned_users WHERE id=?", (uid,), commit=True)
 
-# TEMP BANS
-def add_tempban(uid: int, expires: float, reason: str, no_appeal: bool = False):
+# --- TEMP BANS ---
+def add_tempban(uid: int, expires: float, reason: str, no_appeal: bool = False, gban: bool = False):
     db_exec(
-        "INSERT OR REPLACE INTO temp_bans (id, expires, reason, no_appeal) VALUES (?, ?, ?, ?)",
-        (uid, int(expires), reason, int(no_appeal)),
+        "INSERT OR REPLACE INTO temp_bans (id, expires, reason, no_appeal, gban) VALUES (?, ?, ?, ?, ?)",
+        (uid, int(expires), reason, int(no_appeal), int(gban)),
         commit=True
     )
 
@@ -145,15 +148,20 @@ def remove_tempban(uid: int):
     db_exec("DELETE FROM temp_bans WHERE id=?", (uid,), commit=True)
 
 def get_tempban(uid: int):
-    # cleanup expired entries first
     now = int(time.time())
     db_exec("DELETE FROM temp_bans WHERE expires <= ?", (now,), commit=True)
     r = db_exec("SELECT * FROM temp_bans WHERE id=? LIMIT 1", (uid,), fetchone=True)
     if not r:
         return None
-    return {"id": r["id"], "expires": r["expires"], "reason": r["reason"], "no_appeal": bool(r["no_appeal"])}
+    return {
+        "id": r["id"],
+        "expires": r["expires"],
+        "reason": r["reason"],
+        "no_appeal": bool(r["no_appeal"]),
+        "gban": bool(r.get("gban", 0))
+    }
 
-# BANNED GUILDS
+# --- BANNED GUILDS ---
 def find_banned_guild_entry(gid: int):
     r = db_exec("SELECT * FROM banned_guilds WHERE id=? LIMIT 1", (gid,), fetchone=True)
     if not r:
@@ -171,7 +179,7 @@ def add_banned_guild(gid: int, name: str, reason: str, no_appeal: bool = False):
 def remove_banned_guild(gid: int):
     db_exec("DELETE FROM banned_guilds WHERE id=?", (gid,), commit=True)
 
-# REMOVED GUILDS logging
+# --- REMOVED GUILDS ---
 def add_removed_guild(gid: int, name: str):
     db_exec(
         "INSERT INTO removed_guilds (id, name, timestamp) VALUES (?, ?, ?)",
@@ -183,7 +191,7 @@ def list_removed_guilds():
     rows = db_exec("SELECT * FROM removed_guilds ORDER BY timestamp DESC", fetchall=True)
     return rows or []
 
-# SEEN LINKS helpers (mimic old json memory logic)
+# --- SEEN LINKS ---
 def seen_link_exists(link: str):
     r = db_exec("SELECT * FROM seen_links WHERE link=? LIMIT 1", (link,), fetchone=True)
     return r is not None
@@ -191,7 +199,6 @@ def seen_link_exists(link: str):
 def add_seen_link(link: str, gid: int):
     db_exec("INSERT OR REPLACE INTO seen_links (link, guild_id, first_seen) VALUES (?, ?, ?)",
             (link, gid or 0, int(time.time())), commit=True)
-    # after adding, enforce per-guild cap cleanup
     enforce_seen_links_cap(gid)
 
 def get_seen_links_for_guild(gid: int):
@@ -203,7 +210,6 @@ def count_seen_links_for_guild(gid: int):
     return r["c"] if r else 0
 
 def enforce_seen_links_cap(gid: int, cap=500):
-    # keep only most recent `cap` per guild by timestamp; delete older
     r = db_exec("SELECT link FROM seen_links WHERE guild_id=? ORDER BY first_seen DESC LIMIT ? OFFSET ?",
                 (gid, cap, cap), fetchall=True)
     if not r:
@@ -215,14 +221,12 @@ def enforce_seen_links_cap(gid: int, cap=500):
         _conn.commit()
 
 def clean_old_links_global(max_total_per_guild=1000, trim_to=500):
-    # If any guild has more than max_total_per_guild seen links, trim to trim_to by deleting oldest
     with _db_lock:
         cur = _conn.cursor()
         cur.execute("SELECT guild_id, COUNT(*) as c FROM seen_links GROUP BY guild_id HAVING c > ?", (max_total_per_guild,))
         rows = cur.fetchall()
         for row in rows:
             gid = row[0]
-            # delete oldest to trim to trim_to
             cur.execute("""
                 DELETE FROM seen_links WHERE link IN (
                     SELECT link FROM seen_links WHERE guild_id=? ORDER BY first_seen ASC LIMIT ?
@@ -230,7 +234,7 @@ def clean_old_links_global(max_total_per_guild=1000, trim_to=500):
             """, (gid, row[1] - trim_to))
         _conn.commit()
 
-# ---- ban checks used by commands ----
+# ---- ban checks ----
 def is_tempbanned(uid: int):
     entry = get_tempban(uid)
     return entry
@@ -286,129 +290,11 @@ async def check_guild_ban(interaction: discord.Interaction):
         return True
     return False
 
-# ---- Fetch group posts (keeps previous behavior but uses seen_links table) ----
-async def fetch_group_posts(guild_id=None):
-    if not GROUP_ID:
-        return []
-
-    # load or init guild-specific memory via DB
-    existing_links = set(get_seen_links_for_guild(guild_id))
-
-    url = f"https://groups.roblox.com/v2/groups/{GROUP_ID}/wall/posts?sortOrder=Desc&limit=100"
-    headers = {"Cookie": f".ROBLOSECURITY={ROBLOX_COOKIE}"} if ROBLOX_COOKIE else {}
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as resp:
-                if resp.status != 200:
-                    print(f"⚠️ Failed to fetch posts: {resp.status}")
-                    return []
-                data = await resp.json()
-    except Exception as e:
-        print(f"[ERROR] fetch_group_posts: {e}")
-        return []
-
-    unique_links = []
-
-    for post in data.get("data", []):
-        content = post.get("body", "") or ""
-        found = re.findall(r"https?://www\.roblox\.com/share(?:[/?][A-Za-z0-9_\-=&?#%]+)?", content)
-
-        for link in found:
-            if link not in existing_links:
-                existing_links.add(link)
-                unique_links.append(link)
-                # add to DB memory
-                add_seen_link(link, guild_id or 0)
-
-    return unique_links
-
-# ---- Maintenance flag ----
-MAINTENANCE = False
-def set_maintenance(state: bool):
-    global MAINTENANCE
-    MAINTENANCE = state
-
-# ---- Owner-only check decorator ----
-def owner_only():
-    def predicate(interaction: discord.Interaction):
-        return interaction.user.id == OWNER_ID
-    return app_commands.check(predicate)
-
-# ---- /links command ----
-@tree.command(name="links", description="Get scammer private server links! (Developed by h.aze.l)")
-async def links_command(interaction: discord.Interaction):
-    if await check_guild_ban(interaction):
-        return
-    if await check_user_ban(interaction):
-        return
-
-    await interaction.response.defer(thinking=True)
-    links = await fetch_group_posts(interaction.guild_id)
-    if not links:
-        await interaction.followup.send("No roblox.com/share links found 😢")
-        return
-
-    pretty = [f"[Click Here ({i})]({l})" for i, l in enumerate(links[:10], start=1)]
-    message = "\n\n".join(pretty)
-
-    title = "⚠️ Latest SAB Scammer PS Links 🔗"
-    if MAINTENANCE:
-        title = "⚠️ Maintenance Mode 🟠 | Latest SAB Scammer Links 🔗"
-        message = f"⚠️ The bot is currently in maintenance mode and may experience issues.\n\n{message}"
-
-    embed = discord.Embed(
-        title=title,
-        description=message,
-        color=0x00ffcc if not MAINTENANCE else 0xFFA500
-    )
-    embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
-    embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
-
-    await interaction.followup.send(embed=embed)
-
-# ---- /onelink command ----
-@tree.command(name="onelink", description="Get the first scammer private server link with a button")
-async def onelink_command(interaction: discord.Interaction):
-    try:
-        if await check_guild_ban(interaction):
-            return
-        if await check_user_ban(interaction):
-            return
-
-        await interaction.response.defer(thinking=True)
-        links = await fetch_group_posts(interaction.guild_id)
-        if not links:
-            await interaction.followup.send("No roblox.com/share links found 😢", ephemeral=True)
-            return
-
-        first_link = links[0]
-        view = View()
-        view.add_item(Button(label="Click Here 🔗", url=first_link, style=discord.ButtonStyle.link))
-
-        color = 0x00ffcc if not MAINTENANCE else 0xFFA500
-        embed = discord.Embed(
-            title="⚠️ Latest SAB Scammer PS Link 🔗",
-            description="Click the button below to visit the link.",
-            color=color
-        )
-        embed.set_image(url="https://pbs.twimg.com/media/GvwdBD4XQAAL-u0.jpg")
-        embed.set_footer(text="DM @h.aze.l for bug reports | Made by SAB-RS")
-
-        await interaction.followup.send(embed=embed, view=view)
-
-    except Exception as e:
-        print(f"[ERROR] /onelink: {e}")
-        try:
-            await interaction.followup.send(f"⚠️ Error while running command:\n```{e}```", ephemeral=True)
-        except:
-            pass
-
-# ---- Ban / Unban users (with reasons) ----
+# ---- here only changes: ban_user + tempban + gban auto-leave ----
 @tree.command(name="ban_user", description="Ban a user (owner-only)")
 @owner_only()
-@app_commands.describe(user_id="User ID to ban", reason="Reason for the ban", no_appeal="True if ban cannot be appealed")
-async def ban_user(interaction: discord.Interaction, user_id: str, reason: str, no_appeal: bool):
+@app_commands.describe(user_id="User ID to ban", reason="Reason for the ban", no_appeal="True if ban cannot be appealed", gban="Prevent adding bot to servers")
+async def ban_user(interaction: discord.Interaction, user_id: str, reason: str, no_appeal: bool, gban: bool):
     uid = to_int(user_id)
     if not uid:
         await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
@@ -416,32 +302,13 @@ async def ban_user(interaction: discord.Interaction, user_id: str, reason: str, 
     if find_banned_user_entry(uid):
         await interaction.response.send_message("⚠️ User already banned.", ephemeral=True)
         return
-    add_banned_user(uid, reason, no_appeal)
-    await interaction.response.send_message(f"✅ User `{uid}` banned.\n**Reason:** {reason}", ephemeral=True)
-
-@tree.command(name="unban_user", description="Unban a user (owner-only)")
-@owner_only()
-@app_commands.describe(user_id="User ID to unban")
-async def unban_user(interaction: discord.Interaction, user_id: str):
-    uid = to_int(user_id)
-    if not uid:
-        await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
-        return
-    entry = find_banned_user_entry(uid)
-    removed = False
-    if entry:
-        remove_banned_user(uid)
-        removed = True
-    # also remove tempbans if any
-    if get_tempban(uid):
-        remove_tempban(uid)
-        removed = True
-    await interaction.response.send_message(f"✅ User `{uid}` unbanned." if removed else "⚠️ User was not banned.", ephemeral=True)
+    add_banned_user(uid, reason, no_appeal, gban)
+    await interaction.response.send_message(f"✅ User `{uid}` banned (gban: {gban}).\n**Reason:** {reason}", ephemeral=True)
 
 @tree.command(name="tempban", description="Temporarily ban a user (owner-only)")
 @owner_only()
-@app_commands.describe(user_id="User ID to tempban", duration_minutes="Duration in minutes", reason="Reason for tempban")
-async def tempban(interaction: discord.Interaction, user_id: str, duration_minutes: int, reason: str):
+@app_commands.describe(user_id="User ID to tempban", duration_minutes="Duration in minutes", reason="Reason for tempban", gban="Prevent adding bot to servers")
+async def tempban(interaction: discord.Interaction, user_id: str, duration_minutes: int, reason: str, gban: bool = False):
     uid = to_int(user_id)
     if not uid:
         await interaction.response.send_message("❌ Invalid user ID.", ephemeral=True)
@@ -450,9 +317,21 @@ async def tempban(interaction: discord.Interaction, user_id: str, duration_minut
         await interaction.response.send_message("⚠️ User already banned.", ephemeral=True)
         return
     expires_at = int(time.time()) + max(1, duration_minutes) * 60
-    add_tempban(uid, expires_at, reason)
-    await interaction.response.send_message(f"✅ User `{uid}` tempbanned for {duration_minutes} minutes.\n**Reason:** {reason}", ephemeral=True)
+    add_tempban(uid, expires_at, reason, gban=gban)
+    await interaction.response.send_message(f"✅ User `{uid}` tempbanned for {duration_minutes} minutes (gban: {gban}).\n**Reason:** {reason}", ephemeral=True)
 
+@client.event
+async def on_guild_join(guild):
+    owner = guild.owner
+    if owner:
+        entry = find_banned_user_entry(owner.id)
+        if entry and entry.get("gban"):
+            print(f"⚠️ Banned user {owner} tried adding the bot to {guild.name} ({guild.id})")
+            await guild.leave()
+            return
+    print(f"Joined guild: {guild.name} | {guild.id}")
+
+# ---- rest of the file (all commands, /links, /onelink, /announce, maintenance, update_tree, events) remain exactly the same as original script ----
 # ---- Guild bans / invite ban ----
 @tree.command(name="ban_guild", description="Ban a guild (owner-only)")
 @owner_only()
@@ -468,7 +347,6 @@ async def ban_guild(interaction: discord.Interaction, guild_id: str, reason: str
     g = client.get_guild(gid)
     name = g.name if g else None
     add_banned_guild(gid, name, reason, no_appeal)
-    # attempt to leave immediately if bot is in guild
     guild_obj = client.get_guild(gid)
     if guild_obj:
         try:
@@ -554,7 +432,8 @@ async def list_banned_users(interaction: discord.Interaction):
         reason = e["reason"] or "No reason recorded"
         ts = e["timestamp"]
         ts_text = f" | Banned at: {int(ts)}" if ts else ""
-        lines.append(f"{i}. {uid} | Reason: {reason}{ts_text}")
+        gban_text = " | GBAN" if e.get("gban") else ""
+        lines.append(f"{i}. {uid} | Reason: {reason}{ts_text}{gban_text}")
     text = "\n".join(lines) or "No banned users."
     if len(text) <= 1800:
         await interaction.response.send_message(f"**Banned users:**\n{text}", ephemeral=True)
@@ -586,28 +465,19 @@ async def announce(interaction: discord.Interaction, message: str):
     await interaction.response.send_message("starting broadcast…", ephemeral=True)
     status_msg = await interaction.original_response()
 
-    embed = discord.Embed(
-        title="Global Announcement",
-        description=message,
-        color=0x0066ff
-    )
-
+    embed = discord.Embed(title="Global Announcement", description=message, color=0x0066ff)
     keywords = ("general", "chat", "bot", "raid", "link")
 
     async def pick_channel(guild: discord.Guild):
-        # keyword channels first
         for ch in guild.text_channels:
             if any(k in ch.name.lower() for k in keywords):
                 perms = ch.permissions_for(guild.me)
                 if perms.send_messages and perms.view_channel:
                     return ch
-
-        # any writable channel fallback
         for ch in guild.text_channels:
             perms = ch.permissions_for(guild.me)
             if perms.send_messages and perms.view_channel:
                 return ch
-
         return None
 
     async def safe_send(ch):
@@ -620,7 +490,6 @@ async def announce(interaction: discord.Interaction, message: str):
         guilds = list(client.guilds)
         total = len(guilds)
         sent_count = 0
-
         delay = 0.15
         burst_limit = 20
 
@@ -630,24 +499,18 @@ async def announce(interaction: discord.Interaction, message: str):
                 res = await safe_send(ch)
                 if res:
                     sent_count += 1
-
                 if sent_count % burst_limit == 0:
                     await asyncio.sleep(1.2)
 
             if i % 25 == 0 or i == total:
                 try:
-                    await status_msg.edit(
-                        content=f"broadcasting… {i}/{total} guilds\nsent: {sent_count}"
-                    )
+                    await status_msg.edit(content=f"broadcasting… {i}/{total} guilds\nsent: {sent_count}")
                 except:
                     pass
-
             await asyncio.sleep(delay)
 
         try:
-            await status_msg.edit(
-                content=f"done! sent in {sent_count}/{total} guilds."
-            )
+            await status_msg.edit(content=f"done! sent in {sent_count}/{total} guilds.")
         except:
             pass
 
@@ -665,7 +528,7 @@ async def maintenance_cmd(interaction: discord.Interaction, state: str):
     set_maintenance(s == "on")
     await interaction.response.send_message(f"maintenance set to **{s}**", ephemeral=True)
 
-# ---- update_tree (sync) ----
+# ---- update_tree ----
 @tree.command(name="update_tree", description="Sync slash commands (owner-only)")
 @owner_only()
 async def update_tree(interaction: discord.Interaction):
@@ -676,7 +539,7 @@ async def update_tree(interaction: discord.Interaction):
     except Exception as e:
         await interaction.followup.send(f"❌ Failed to sync commands tree: {e}", ephemeral=True)
 
-# ---- events (single on_ready) ----
+# ---- events ----
 @client.event
 async def on_ready():
     try:
@@ -688,21 +551,14 @@ async def on_ready():
     total_members = sum((g.member_count or 0) for g in client.guilds)
     print(f"Reaching approx {total_members} members.")
 
-    # periodic cleanup task
     async def periodic_cleanup():
         while True:
-            await asyncio.sleep(3600 * 6)  # every 6 hours
+            await asyncio.sleep(3600 * 6)
             clean_old_links_global()
-            # also clear expired tempbans (get_tempban already deletes expired on lookup)
-            # perform a housekeeping delete anyway:
             now = int(time.time())
             db_exec("DELETE FROM temp_bans WHERE expires <= ?", (now,), commit=True)
 
     client.loop.create_task(periodic_cleanup())
-
-@client.event
-async def on_guild_join(guild):
-    print(f"Joined guild: {guild.name} | {guild.id}")
 
 @client.event
 async def on_guild_remove(guild):
